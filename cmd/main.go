@@ -2,25 +2,33 @@ package main
 
 import (
 	"log"
+	"net/http"
+
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
-	"lorallabs.com/oauth-server/internal/store"
-	"net/http"
 )
 
 func main() {
-	cfg := config.LoadConfig()
-	db, err := store.NewStore(cfg.DBConnectionString)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	oAuthHandler := oauth.NewOAuthHandler(cfg, db)
+	config := config.LoadConfig()
 
-	http.HandleFunc("/login", oAuthHandler.HandleLogin)
-	http.HandleFunc("/auth/callback", oAuthHandler.HandleCallback)
+	providers := oauth.InitializeProviders(config)
 
-	log.Println("Server starting on :8081")
-	if err := http.ListenAndServe(":8081", nil); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	http.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
+		// Extract provider from the URL
+		providerName := r.URL.Path[len("/auth/"):]
+
+		// Initiate OAuth flow
+		oauth.HandleAuth(providers, providerName, w, r)
+	})
+
+	http.HandleFunc("/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
+		// Extract provider from the URL
+		providerName := r.URL.Path[len("/auth/callback/"):]
+
+		// Handle OAuth callback
+		oauth.HandleCallback(providers, providerName, w, r)
+	})
+
+	log.Default().Println("Server started on :8081")
+	http.ListenAndServe(":8081", nil)
 }

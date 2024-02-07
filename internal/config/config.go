@@ -7,10 +7,10 @@ import (
 )
 
 type Config struct {
-	ClientID           string
-	ClientSecret       string
-	RedirectURI        string
-	Scopes             string
+	KrogerClientID     string
+	KrogerClientSecret string
+	KrogerRedirectURI  string
+	KrogerScopes       string
 	DBConnectionString string
 }
 
@@ -21,10 +21,10 @@ func LoadConfig() *Config {
 	}
 
 	return &Config{
-		ClientID:           os.Getenv("KROGER_CLIENT_ID"),
-		ClientSecret:       os.Getenv("KROGER_CLIENT_SECRET"),
-		RedirectURI:        os.Getenv("KROGER_REDIRECT_URI"),
-		Scopes:             os.Getenv("KROGER_SCOPES"),
+		KrogerClientID:     os.Getenv("KROGER_CLIENT_ID"),
+		KrogerClientSecret: os.Getenv("KROGER_CLIENT_SECRET"),
+		KrogerRedirectURI:  os.Getenv("KROGER_REDIRECT_URI"),
+		KrogerScopes:       os.Getenv("KROGER_SCOPES"),
 		DBConnectionString: os.Getenv("DB_CONNECTION_STRING"),
 	}
 }

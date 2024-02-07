@@ -1,0 +1,3 @@
+- Registering a new provider
+- - auth/{provider}
+- - auth/callback/{provider}
