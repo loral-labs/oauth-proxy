@@ -1,8 +1,10 @@
 package oauth
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth/providers"
@@ -58,9 +60,6 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		return
 	}
 
-	// Process token (store it, use it, etc.)
-	log.Default().Printf("%s Token: %+v", providerName, token)
-
 	// search for the provider in the database
 	dbProvider := &schema.Provider{}
 	err = h.Store.DB.Where("name = ?", providerName).First(&dbProvider).Error
@@ -73,9 +72,22 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 	providerToken := &schema.ProviderToken{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
-		Expiry:       token.Expiry,
+		Expiry:       time.Now().Add(time.Duration(token.Expiry) * time.Second).Unix(),
 		UserID:       1, // Replace with the actual user ID
 		ProviderID:   dbProvider.ID,
+	}
+
+	// If a token already exists for the user and provider, update it
+	var existingToken schema.ProviderToken
+	err = h.Store.DB.Where("user_id = ? AND provider_id = ?", providerToken.UserID, providerToken.ProviderID).First(&existingToken).Error
+	if err == nil {
+		providerToken.ID = existingToken.ID
+		err = h.Store.DB.Save(providerToken).Error
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		return
 	}
 
 	err = h.Store.DB.Create(providerToken).Error
@@ -83,4 +95,50 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *OAuthHandler) HandleGetToken(providerName string, userID string, w http.ResponseWriter, r *http.Request) {
+	// Find the provider in the database
+	dbProvider := &schema.Provider{}
+	err := h.Store.DB.Where("name = ?", providerName).First(&dbProvider).Error
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Find the token for the user and provider
+	var providerToken schema.ProviderToken
+	err = h.Store.DB.Where("user_id = ? AND provider_id = ?", userID, dbProvider.ID).First(&providerToken).Error
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// check if the token is expired
+	if time.Now().Unix() > providerToken.Expiry {
+		// refresh the token
+		provider, exists := h.ProviderMap[providerName]
+		if !exists {
+			http.Error(w, "Unsupported provider", http.StatusBadRequest)
+			return
+		}
+		token, err := provider.RefreshToken(providerToken.RefreshToken)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// update the token in the database
+		providerToken.AccessToken = token.AccessToken
+		providerToken.RefreshToken = token.RefreshToken
+		providerToken.Expiry = time.Now().Add(time.Duration(token.Expiry) * time.Second).Unix()
+		err = h.Store.DB.Save(&providerToken).Error
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	// return the bearer token
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"bearer_token": providerToken.AccessToken})
 }

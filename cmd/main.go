@@ -28,6 +28,12 @@ func main() {
 		oauthHandler.HandleCallback(providerName, w, r)
 	})
 
+	http.HandleFunc("/auth/token/", func(w http.ResponseWriter, r *http.Request) {
+		providerName := r.URL.Query().Get("provider")
+		userID := r.URL.Query().Get("user_id")
+		oauthHandler.HandleGetToken(providerName, userID, w, r)
+	})
+
 	log.Default().Println("Server started on :8081")
 	http.ListenAndServe(":8081", nil)
 }
