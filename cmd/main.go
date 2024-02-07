@@ -6,27 +6,26 @@ import (
 
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
+	"lorallabs.com/oauth-server/internal/store"
 )
 
 func main() {
 	config := config.LoadConfig()
+	store, err := store.NewStore(config.DBConnectionString)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	providers := oauth.InitializeProviders(config)
+	oauthHandler := oauth.NewOAuthHandler(config, store)
 
 	http.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
-		// Extract provider from the URL
 		providerName := r.URL.Path[len("/auth/"):]
-
-		// Initiate OAuth flow
-		oauth.HandleAuth(providers, providerName, w, r)
+		oauthHandler.HandleAuth(providerName, w, r)
 	})
 
 	http.HandleFunc("/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
-		// Extract provider from the URL
 		providerName := r.URL.Path[len("/auth/callback/"):]
-
-		// Handle OAuth callback
-		oauth.HandleCallback(providers, providerName, w, r)
+		oauthHandler.HandleCallback(providerName, w, r)
 	})
 
 	log.Default().Println("Server started on :8081")

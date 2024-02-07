@@ -20,26 +20,24 @@ type User struct {
 	ProviderTokens []ProviderToken
 }
 
-// ProviderToken represents OAuth tokens provided by external providers, related to a User and an Application
-type ProviderToken struct {
-	ID            uint      `gorm:"primaryKey"`
-	UUID          uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
-	AccessToken   string
-	RefreshToken  string
-	Expiry        int64 // Unix time
-	UserID        uint  // Foreign key for User
-	ApplicationID uint  // Foreign key for Application
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
-}
-
-// Application represents an external application that has ProviderTokens
 type Provider struct {
-	ID             uint   `gorm:"primaryKey"`
-	Name           string `gorm:"unique"`
+	ID             uint      `gorm:"primaryKey"`
+	UUID           uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	Name           string    `gorm:"unique"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      gorm.DeletedAt  `gorm:"index"`
-	ProviderTokens []ProviderToken // Relation back to ProviderTokens
+	ProviderTokens []ProviderToken `gorm:"foreignKey:ProviderID"` // Explicitly define the foreign key relationship
+}
+type ProviderToken struct {
+	ID           uint      `gorm:"primaryKey"`
+	UUID         uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	AccessToken  string
+	RefreshToken string
+	Expiry       int64 // Unix time
+	UserID       uint  // Foreign key for User
+	ProviderID   uint  // Foreign key for Provider, assuming this is the missing link
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	DeletedAt    gorm.DeletedAt `gorm:"index"`
 }

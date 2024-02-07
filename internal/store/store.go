@@ -1,6 +1,8 @@
 package store
 
 import (
+	"log"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	schema "lorallabs.com/oauth-server/pkg/db"
@@ -18,11 +20,17 @@ func NewStore(connectionString string) (*Store, error) {
 		return nil, err
 	}
 
+	// Executing the raw SQL to create the UUID extension
+	err = db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";").Error
+	if err != nil {
+		log.Fatalf("Failed to create UUID extension: %v", err)
+	}
+
 	// AutoMigrate your schema here
 	err = db.AutoMigrate(
 		&schema.User{},
-		&schema.ProviderToken{},
 		&schema.Provider{},
+		&schema.ProviderToken{},
 	)
 	if err != nil {
 		return nil, err
