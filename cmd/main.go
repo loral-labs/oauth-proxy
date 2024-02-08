@@ -2,14 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/store"
+	schema "lorallabs.com/oauth-server/pkg/db"
 )
 
 func main() {
@@ -44,23 +47,32 @@ func main() {
 	http.ListenAndServe(":8081", nil)
 }
 
+type Config struct {
+	Provider  string              `json:"provider"`
+	APIRoot   string              `json:"apiroot"`
+	Endpoints map[string]Endpoint `json:"endpoints"`
+}
+
+type Parameter struct {
+	Type        string `json:"type"`
+	Required    bool   `json:"required"`
+	Description string `json:"description"`
+	Location    string `json:"location"`
+	Format      string `json:"format,omitempty"` // Optional, only for integer parameters
+}
+
+type Endpoint struct {
+	ID          string               `json:"id"`
+	LoralPath   string               `json:"loralPath"`
+	TruePath    string               `json:"truePath"`
+	HttpMethod  string               `json:"httpMethod"`
+	Description string               `json:"description,omitempty"` // Optional
+	Parameters  map[string]Parameter `json:"parameters"`
+	Response    interface{}          `json:"response,omitempty"` // Optional, adjust as needed
+	Request     interface{}          `json:"request,omitempty"`  // Optional, adjust as needed
+}
+
 func registerDynamicEndpoints(store *store.Store) {
-	// Define a struct to match the expected format of each endpoint in the JSON
-	type Endpoint struct {
-		ID         string            `json:"id"`
-		Provider   string            `json:"provider"`
-		LoralPath  string            `json:"path"`
-		TruePath   string            `json:"truePath"`
-		HttpMethod string            `json:"httpMethod"`
-		Parameters map[string]string `json:"parameters"`
-		// Add other fields as necessary
-	}
-
-	// Define a struct to hold the array of endpoints
-	var endpoints struct {
-		Endpoints []Endpoint `json:"endpoints"`
-	}
-
 	// Read the JSON file (adjust the path to where your JSON file is located)
 	configFile, err := os.Open("internal/apps/kroger/loral_manual.json")
 	if err != nil {
@@ -68,37 +80,68 @@ func registerDynamicEndpoints(store *store.Store) {
 	}
 	defer configFile.Close()
 
-	// Parse the JSON file into the endpoints struct
-	if err := json.NewDecoder(configFile).Decode(&endpoints); err != nil {
+	// Parse the JSON file into the Config struct
+	var config Config
+	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
 		log.Fatal(err)
 	}
 
-	// Register each endpoint
-	for _, endpoint := range endpoints.Endpoints {
-		http.HandleFunc("/"+endpoint.LoralPath, func(w http.ResponseWriter, r *http.Request) {
-			// Expect the request to match the expected HTTP method
+	for _, endpoint := range config.Endpoints {
+		endpoint := endpoint // Create a new variable to avoid improper closure
+
+		log.Default().Printf("Registering endpoint: %s\n", endpoint.LoralPath)
+		http.HandleFunc("/"+config.Provider+"/"+endpoint.LoralPath, func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != endpoint.HttpMethod {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
 			params := r.URL.Query()
+			// return descriptive error if userId is missing
+			userId := params.Get("userId")
+			if userId == "" {
+				http.Error(w, "Missing userId, a stable and unique client identifier is required from you", http.StatusBadRequest)
+				return
+			}
+			// check that all required parameters are present
 			for key, value := range endpoint.Parameters {
-				if params.Get(key) != value {
-					http.Error(w, "Invalid parameters", http.StatusBadRequest)
+				if value.Required && params.Get(key) == "" {
+					http.Error(w, "Missing required parameter: "+key, http.StatusBadRequest)
 					return
 				}
 			}
 
-			// params must include userId
-			userId := r.URL.Query().Get("userId")
-			if userId == "" {
-				http.Error(w, "Missing userId", http.StatusBadRequest)
+			// get token from userId
+			var clientRecord schema.Client
+			err := store.DB.Where("identifier = ?", params.Get("userId")).First(&clientRecord).Error
+			if err != nil {
+				http.Error(w, "Client not found", http.StatusNotFound)
 				return
 			}
-			// get token from userId
-			token, err := store.GetTokenByClientID(userId, endpoint.Provider)
+			// make network request to get bearer token
+			tokenURL := fmt.Sprintf("http://%s/auth/token/?provider=%s&user_id=%s", r.Host, config.Provider, userId)
+			tokenReq, err := http.NewRequest(http.MethodGet, tokenURL, nil)
 			if err != nil {
-				http.Error(w, "Token not found", http.StatusNotFound)
+				http.Error(w, "Failed to create request for token: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			tokenResp, err := http.DefaultClient.Do(tokenReq)
+			if err != nil {
+				http.Error(w, "Failed to get token: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer tokenResp.Body.Close()
+
+			if tokenResp.StatusCode != http.StatusOK {
+				http.Error(w, "Failed to get token, status code: "+strconv.Itoa(tokenResp.StatusCode), http.StatusInternalServerError)
+				return
+			}
+
+			var tokenData struct {
+				BearerToken string `json:"bearer_token"`
+			}
+			if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
+				http.Error(w, "Failed to decode token response: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 
@@ -111,16 +154,17 @@ func registerDynamicEndpoints(store *store.Store) {
 				}
 				truePath = truePath[:len(truePath)-1]
 			}
-			req, err := http.NewRequest(r.Method, truePath, r.Body)
+			req, err := http.NewRequest(r.Method, config.APIRoot+truePath, r.Body)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			// Add authentication headers, if necessary
-			req.Header.Add("Authorization", "Bearer "+token.AccessToken)
+			req.Header.Add("Authorization", "Bearer "+tokenData.BearerToken)
 
 			// Forward the request to the true path
+			log.Default().Printf("Request: %v\n", req)
 			client := &http.Client{}
 			resp, err := client.Do(req)
 			if err != nil {
