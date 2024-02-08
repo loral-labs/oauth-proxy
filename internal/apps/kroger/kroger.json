@@ -1,0 +1,476 @@
+{
+    "basePath": "/v1/products",
+    "ownerName": "Kroger",
+    "resources": {
+      "identity": {
+        "methods": {
+          "get": {
+            "id": "identity.get",
+            "path": "identity/profile",
+            "httpMethod": "GET",
+            "description": "Provides access to the profile id of an authenticated customer.",
+            "response": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "The customer's profile Id."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "cart": {
+        "methods": {
+          "add": {
+            "id": "cart.add",
+            "path": "cart/add",
+            "httpMethod": "PUT",
+            "description": "Provides access to add items to an authenticated customer's cart.",
+            "request": {
+              "items": {
+                "type": "array",
+                "description": "An array of items in the cart.",
+                "items": {
+                  "$ref": "cart.cartItemModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "products": {
+        "methods": {
+          "search": {
+            "id": "products.product.search",
+            "path": "products",
+            "httpMethod": "GET",
+            "description": "Allows you to find products by passing in either a search term or product Id.\nInitial Search Value Required",
+            "parameters": {
+              "filter.term": {
+                "type": "string",
+                "description": "A search term to filter product results. As an example, you could input milk, bread, or salt. Search terms are limited to a maximum of 8 words. Each new space in the search term denotes a new word.",
+                "location": "query"
+              },
+              "filter.locationId": {
+                "type": "string",
+                "description": "The locationId of the store. When using this filter, only products available at that location are returned. Optional.",
+                "location": "query"
+              },
+              "filter.productId": {
+                "type": "string",
+                "description": "The productId of the products(s) to return. For more than one item, the list must be comma-separated. When used, all other query parameters are ignored. Optional.",
+                "location": "query"
+              },
+              "filter.brand": {
+                "type": "string",
+                "description": "The brand name of the products to return. When using this filter, only products by that brand are returned. Brand names are case-sensitive, and lists must be pipe-separated. Optional.",
+                "location": "query"
+              },
+              "filter.fulfillment": {
+                "type": "string",
+                "description": "The available fulfillment types of the product(s) to return. Fulfillment types are case-sensitive, and lists must be comma-separated. Must be one or more of the follow types:\n\n- ais: Available In Store \n- csp: Curbside Pickup\n- dth: Delivery to Home\n- sth: Ship to Home\n\nOptional.",
+                "location": "query"
+              },
+              "filter.start": {
+                "type": "integer",
+                "description": "[1 .. 250] Optional.",
+                "format": "int32",
+                "location": "query"
+              },
+              "filter.limit": {
+                "type": "integer",
+                "description": "[1 .. 50] Optional.",
+                "format": "int32",
+                "location": "query"
+              }
+            },
+            "response": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "products.productModel"
+                }
+              },
+              "meta": {
+                "$ref": "MetaModel"
+              }
+            }
+          },
+          "details": {
+            "id": "products.product.details",
+            "path": "products/{id}",
+            "httpMethod": "GET",
+            "description": "Provides access to the details of a specific product by either using the productId or UPC.",
+            "parameters": {
+              "id": {
+                "type": "string",
+                "description": "The productId of the product to return.",
+                "required": true,
+                "location": "path"
+              },
+              "filter.locationId": {
+                "type": "string",
+                "description": "The locationId of the store. When using this filter, only products available at that location are returned. Optional.",
+                "location": "query"
+              }
+            },
+            "response": {
+              "data": {
+                "$ref": "products.productModel"
+              },
+              "meta": {
+                "$ref": "MetaModel"
+              }
+            }
+          }
+        }
+      }
+    },
+    "rootUrl": "https://api.kroger.com/",
+    "description": "Finds grocery product + store location data and manipulates cart data",
+    "title": "Kroger API",
+    "baseUrl": "https://api.kroger.com/v1",
+    "ownerDomain": "kroger.com",
+    "protocol": "rest",
+    "schemas": {
+      "cart.cartItemModel": {
+        "id": "cart.cartItemModel",
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "description": "The quantity of the item.",
+            "format": "int32"
+          },
+          "upc": {
+            "type": "string",
+            "description": "The UPC of the item. To retrieve UPC call the products.product.search method."
+          },
+          "modality": {
+            "type": "string",
+            "description": "An optional value representing the modality. Default is 'DELIVERY'.",
+            "enum": [
+              "DELIVERY",
+              "PICKUP"
+            ]
+          }
+        }
+      },
+      "products.productModel": {
+        "id": "products.productModel",
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "description": "The UPC of the product."
+          },
+          "aisleLocations": {
+            "type": "array",
+            "items": {
+              "$ref": "products.productAisleLocationModel"
+            }
+          },
+          "brand": {
+            "type": "string",
+            "description": "The brand of the product."
+          },
+          "categories": {
+            "type": "array",
+            "description": "The categories the product belongs to.",
+            "items": {
+              "type": "string",
+              "description": "The category the product belongs to."
+            }
+          },
+          "countryOrigin": {
+            "type": "string",
+            "description": "The country of origin of the product."
+          },
+          "description": {
+            "type": "string",
+            "description": "The name of the product."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "products.productItemModel"
+            }
+          },
+          "itemInformation": {
+            "type": "array",
+            "description": "Information about the product's size.",
+            "items": {
+              "$ref": "products.productBoxedDimensionsModel"
+            }
+          },
+          "temperature": {
+            "type": "array",
+            "description": "Information about the item's temperature requirements.",
+            "items": {
+              "$ref": "products.productTemperatureModel"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "products.productImageModel"
+            }
+          },
+          "upc": {
+            "type": "string",
+            "description": "The UPC of the product."
+          }
+        }
+      },
+      "products.productAisleLocationModel": {
+        "id": "products.productAisleLocationModel",
+        "type": "object",
+        "properties": {
+          "bayNumber": {
+            "type": "string",
+            "description": "The bay number in the aisle."
+          },
+          "description": {
+            "type": "string",
+            "description": "The location in the store."
+          },
+          "number": {
+            "type": "string",
+            "description": "The aisle number in the store."
+          },
+          "numberOfFacings": {
+            "type": "string",
+            "description": "The number of facings."
+          },
+          "sequenceNumber": {
+            "type": "string",
+            "description": "The sequence of the aisle in the store."
+          },
+          "side": {
+            "type": "string",
+            "description": "The side of the aisle where the product is located."
+          },
+          "shelfNumber": {
+            "type": "string",
+            "description": "The shelf number in the aisle."
+          },
+          "shelfPositionInBay": {
+            "type": "string",
+            "description": "The position of the shelf in the bay."
+          }
+        }
+      },
+      "products.productItemModel": {
+        "id": "products.productItemModel",
+        "type": "object",
+        "properties": {
+          "itemId": {
+            "type": "string",
+            "description": "The UPC of the product."
+          },
+          "inventory": {
+            "$ref": "products.productItemInventoryModel",
+            "description": "The inventory of the product."
+          },
+          "favorite": {
+            "type": "boolean",
+            "description": "The favorite status of the product."
+          },
+          "fulfillment": {
+            "$ref": "products.productItemFulfillmentModel",
+            "description": "The fulfillment of the product."
+          },
+          "price": {
+            "$ref": "products.productItemPriceModel",
+            "description": "The price of the product."
+          },
+          "nationalPrice": {
+            "$ref": "products.productItemPriceModel",
+            "description": "The national price of the product."
+          },
+          "size": {
+            "type": "string",
+            "description": "A description of the product's size."
+          },
+          "soldBy": {
+            "type": "string",
+            "description": "Indicates how this item is sold. Values returned are typically either 'weight' or 'unit'"
+          }
+        }
+      },
+      "products.productBoxedDimensionsModel": {
+        "id": "products.productBoxedDimensionsModel",
+        "type": "object",
+        "properties": {
+          "depth": {
+            "type": "string",
+            "description": "The depth of the product."
+          },
+          "height": {
+            "type": "string",
+            "description": "The height of the product."
+          },
+          "weight": {
+            "type": "string",
+            "description": "The weight of the product."
+          }
+        }
+      },
+      "products.productTemperatureModel": {
+        "id": "products.productTemperatureModel",
+        "type": "object",
+        "properties": {
+          "indicator": {
+            "type": "string",
+            "description": "Information about the product's storage temperature."
+          },
+          "heatSensitive": {
+            "type": "boolean",
+            "description": "Indicates if the item is heat sensitive."
+          }
+        }
+      },
+      "products.productImagesModel": {
+        "id": "product.productImagesModel",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "An optional identifier of the image."
+          },
+          "perspective": {
+            "type": "string",
+            "description": "A description of the product images view."
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Indicates if the image is the default image."
+          },
+          "sizes": {
+            "type": "array",
+            "description": "An array of images sizes.",
+            "items": {
+              "$ref": "product.productImageSizeModel"
+            }
+          }
+        }
+      },
+      "products.productItemInventoryModel": {
+        "id": "products.productItemInventoryModel",
+        "type": "object",
+        "properties": {
+          "stockLevel": {
+            "type": "string",
+            "description": "Indicates the level of stock.",
+            "enum": [
+              "HIGH",
+              "LOW",
+              "TEMPORARILY_OUT_OF_STOCK"
+            ]
+          }
+        }
+      },
+      "products.productItemFulfillmentModel": {
+        "id": "products.productItemFulfillmentModel",
+        "type": "object",
+        "properties": {
+          "curbisde": {
+            "type": "boolean",
+            "description": "Indicates if the product is available for curbside pickup."
+          },
+          "delivery": {
+            "type": "boolean",
+            "description": "Indicates if the product is available for home delivery."
+          },
+          "instore": {
+            "type": "boolean",
+            "description": "Indicates if the product is available in store. This does not indicate that the item is in stock."
+          },
+          "shiptohome": {
+            "type": "boolean",
+            "description": "Indicates if the product is available to be shipped from a fulfillment center."
+          }
+        }
+      },
+      "products.productItemPriceModel": {
+        "id": "products.productItemPriceModel",
+        "type": "object",
+        "properties": {
+          "regular": {
+            "type": "string",
+            "description": "The regular price of the item."
+          },
+          "promo": {
+            "type": "string",
+            "description": "The sale price of the item."
+          },
+          "regularPerUnitEstimate": {
+            "type": "string",
+            "description": "The estimated price of 1 unit of the item."
+          },
+          "promoPerUnitEstimate": {
+            "type": "string",
+            "description": "The estimated sale price of 1 unit of the item."
+          }
+        }
+      },
+      "products.productImageSizeModel": {
+        "id": "products.productImageSizeModel",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "An optional identifier of the image size."
+          },
+          "size": {
+            "type": "string",
+            "description": "A description of the image size."
+          },
+          "url": {
+            "type": "string",
+            "description": "The URL location of the image."
+          }
+        }
+      },
+      "MetaModel": {
+        "id": "MetaModel",
+        "type": "object",
+        "properties": {
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "start": {
+                "type": "integer",
+                "format": "int32"
+              },
+              "total": {
+                "type": "integer",
+                "format": "int32"
+              }
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "auth": {
+      "bearer": {
+        "token": "eyJhbGciOiJSUzI1NiIsImprdSI6Imh0dHBzOi8vYXBpLmtyb2dlci5jb20vdjEvLndlbGwta25vd24vandrcy5qc29uIiwia2lkIjoiWjRGZDNtc2tJSDg4aXJ0N0xCNWM2Zz09IiwidHlwIjoiSldUIn0.eyJhdWQiOiJwcm9kcGxheWdyb3VuZC00ZjZiNDY3YmQ4OTdiMTk0NTgxNTVhZjZmYzFhNDJiZjYwMjc3Mzg1MjMzOTczODMwMzMiLCJleHAiOjE3MDcyNzU5MTIsImlhdCI6MTcwNzI3NDEwNywiaXNzIjoiYXBpLmtyb2dlci5jb20iLCJzdWIiOiJlNDE4MjY4YS05Njk2LTRkMjctOTNiZi00NGE4N2YzNzE2M2MiLCJzY29wZSI6InByb2R1Y3QuY29tcGFjdCIsImF1dGhBdCI6MTcwNzI3NDExMjE2MzM4MDU5NiwicGZjeCI6InVybjprcm9nZXJjbzpwcm9maWxlOnNob3BwZXI6OGU4ODIyNjktNjU3ZC00MjA0LTlmYzMtYmU2NWIxNTk1NWViIiwiYXpwIjoicHJvZHBsYXlncm91bmQtNGY2YjQ2N2JkODk3YjE5NDU4MTU1YWY2ZmMxYTQyYmY2MDI3NzM4NTIzMzk3MzgzMDMzIn0.npSoI-cPv5t1k5lpDB4CcF5OhCGnZWof9s9bhUoldsHHLEjKnHQ3ppMf_ApafCbixajrptWa0FTxibjoEyqj_R7BGUYbTuXCEBuKev89KpakTqotFLep69k_ZDuoSdGUqBJlnzC3sJWwEshoMnNZcMsOKOvBafiyjdRTC3wTwc-pcumfano4bJgtjQz7SrocGDwQz9KAoTU7YF286ZCn_62JcVjMKmzQQx6SasU6lPuQXBrpNACZgJWEaut9fPM04909GcpUKwE3u3cuIDdf6n8bDYJj5_kQpQOwyVdzmZ7PxqrG8nMSA8V0zcpMwg5njCWr5o5jrBcO4JNKRDbXJg"
+      }
+    },
+    "version": "v1",
+    "kind": "discovery#restDescription"
+  }

@@ -29,6 +29,7 @@ func NewStore(connectionString string) (*Store, error) {
 	// AutoMigrate your schema here
 	err = db.AutoMigrate(
 		&schema.User{},
+		&schema.Client{},
 		&schema.Provider{},
 		&schema.ProviderToken{},
 	)
@@ -44,12 +45,17 @@ func (s *Store) SaveToken(token *schema.ProviderToken) error {
 	return s.DB.Create(token).Error
 }
 
-// GetTokenByID retrieves a token by its ID from the database.
-func (s *Store) GetTokenByID(id uint) (*schema.ProviderToken, error) {
-	var token schema.ProviderToken
-	err := s.DB.First(&token, id).Error
+// GetTokenByID retrieves a token by a client-provided from the database.
+func (s *Store) GetTokenByClientID(id string, provider string) (*schema.ProviderToken, error) {
+	var clientRecord *schema.Client
+	err := s.DB.Where("identifier = ?", id).First(&clientRecord).Error
 	if err != nil {
-		return nil, err // This will include gorm.ErrRecordNotFound if no token is found
+		return nil, err
+	}
+	var token schema.ProviderToken
+	err = s.DB.Where("user_id = ? AND provider = ?", clientRecord.UserID, provider).First(&token).Error
+	if err != nil {
+		return nil, err
 	}
 	return &token, nil
 }

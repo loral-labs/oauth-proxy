@@ -18,6 +18,18 @@ type User struct {
 	UpdatedAt      time.Time
 	DeletedAt      gorm.DeletedAt `gorm:"index"`
 	ProviderTokens []ProviderToken
+	Clients        []Client
+}
+
+type Client struct {
+	ID         uint      `gorm:"primaryKey"`
+	UUID       uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4()"`
+	Name       string    `gorm:"unique"`
+	Identifier string    `gorm:"unique"` // a client-provided unique identifier
+	UserID     uint      // Foreign key for User
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	DeletedAt  gorm.DeletedAt `gorm:"index"`
 }
 
 type Provider struct {

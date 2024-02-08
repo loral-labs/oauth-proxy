@@ -1,0 +1,85 @@
+{
+  "search": {
+    "id": "products.product.search",
+    "path": "products",
+    "httpMethod": "GET",
+    "description": "Allows you to find products by passing in either a search term or product Id.\nInitial Search Value Required",
+    "parameters": {
+      "userId": {
+        "type": "string",
+        "description": "A unique identified to authorize a user. This is required for all requests.",
+        "location": "query"
+      },
+      "filter.term": {
+        "type": "string",
+        "description": "A search term to filter product results. As an example, you could input milk, bread, or salt. Search terms are limited to a maximum of 8 words. Each new space in the search term denotes a new word.",
+        "location": "query"
+      },
+      "filter.locationId": {
+        "type": "string",
+        "description": "The locationId of the store. When using this filter, only products available at that location are returned. Optional.",
+        "location": "query"
+      },
+      "filter.productId": {
+        "type": "string",
+        "description": "The productId of the products(s) to return. For more than one item, the list must be comma-separated. When used, all other query parameters are ignored. Optional.",
+        "location": "query"
+      },
+      "filter.brand": {
+        "type": "string",
+        "description": "The brand name of the products to return. When using this filter, only products by that brand are returned. Brand names are case-sensitive, and lists must be pipe-separated. Optional.",
+        "location": "query"
+      },
+      "filter.fulfillment": {
+        "type": "string",
+        "description": "The available fulfillment types of the product(s) to return. Fulfillment types are case-sensitive, and lists must be comma-separated. Must be one or more of the follow types:\n\n- ais: Available In Store \n- csp: Curbside Pickup\n- dth: Delivery to Home\n- sth: Ship to Home\n\nOptional.",
+        "location": "query"
+      },
+      "filter.start": {
+        "type": "integer",
+        "description": "[1 .. 250] Optional.",
+        "format": "int32",
+        "location": "query"
+      },
+      "filter.limit": {
+        "type": "integer",
+        "description": "[1 .. 50] Optional.",
+        "format": "int32",
+        "location": "query"
+      }
+    },
+    "response": {
+      "data": {
+        "type": "array",
+        "items": {
+          "$ref": "products.productModel"
+        }
+      },
+      "meta": {
+        "$ref": "MetaModel"
+      }
+    }
+  },
+  "add": {
+    "id": "cart.add",
+    "path": "cart/add",
+    "httpMethod": "PUT",
+    "description": "Provides access to add items to an authenticated customer's cart.",
+    "parameters": {
+      "userId": {
+        "type": "string",
+        "description": "A unique identified to authorize a user. This is required for all requests.",
+        "location": "query"
+      }
+    },
+    "request": {
+      "items": {
+        "type": "array",
+        "description": "An array of items in the cart.",
+        "items": {
+          "$ref": "cart.cartItemModel"
+        }
+      }
+    }
+  }
+}
