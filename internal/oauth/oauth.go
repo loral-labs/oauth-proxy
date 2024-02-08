@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 
@@ -29,7 +28,7 @@ func NewOAuthHandler(config *config.Config, store *store.Store) *OAuthHandler {
 // InitializeProviders sets up OAuth providers
 func InitializeProviders(config *config.Config) map[string]providers.Provider {
 	providers := map[string]providers.Provider{
-		"kroger": &kroger.KrogerProvider{ClientID: config.KrogerClientID, ClientSecret: config.KrogerClientSecret, RedirectURI: config.KrogerRedirectURI},
+		"kroger": &kroger.KrogerProvider{ClientID: config.KrogerClientID, ClientSecret: config.KrogerClientSecret, RedirectURI: config.KrogerRedirectURI, Scopes: config.KrogerScopes},
 		// Initialize other providers similarly
 	}
 	return providers
@@ -82,6 +81,7 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 	err = h.Store.DB.Where("user_id = ? AND provider_id = ?", providerToken.UserID, providerToken.ProviderID).First(&existingToken).Error
 	if err == nil {
 		providerToken.ID = existingToken.ID
+		providerToken.UUID = existingToken.UUID
 		err = h.Store.DB.Save(providerToken).Error
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

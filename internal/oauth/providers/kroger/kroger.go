@@ -16,13 +16,15 @@ type KrogerProvider struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURI  string
+	Scopes       string
 }
 
-func NewKrogerProvider(clientID, clientSecret, redirectURI string) *KrogerProvider {
+func NewKrogerProvider(clientID, clientSecret, redirectURI string, scopes string) *KrogerProvider {
 	return &KrogerProvider{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		RedirectURI:  redirectURI,
+		Scopes:       scopes,
 	}
 }
 
@@ -31,7 +33,7 @@ func (k *KrogerProvider) GetName() string {
 }
 
 func (k *KrogerProvider) GetAuthURL() string {
-	scope := "profile.compact cart.basic:write"
+	scope := k.Scopes
 	return fmt.Sprintf("https://api.kroger.com/v1/connect/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s",
 		k.ClientID, url.QueryEscape(k.RedirectURI), url.QueryEscape(scope))
 }
