@@ -29,7 +29,9 @@ func NewStore(connectionString string) (*Store, error) {
 	// AutoMigrate your schema here
 	err = db.AutoMigrate(
 		&schema.User{},
+		&schema.APIKey{},
 		&schema.Client{},
+		&schema.ClientGrants{},
 		&schema.Provider{},
 		&schema.ProviderToken{},
 	)
