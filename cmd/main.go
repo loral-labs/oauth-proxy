@@ -89,8 +89,9 @@ func registerDynamicEndpoints(store *store.Store) {
 	for _, endpoint := range config.Endpoints {
 		endpoint := endpoint // Create a new variable to avoid improper closure
 
-		log.Default().Printf("Registering endpoint: %s\n", endpoint.LoralPath)
 		http.HandleFunc("/"+config.Provider+"/"+endpoint.LoralPath, func(w http.ResponseWriter, r *http.Request) {
+			log.Default().Printf("%s/%s hit", config.Provider, endpoint.LoralPath)
+
 			if r.Method != endpoint.HttpMethod {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
