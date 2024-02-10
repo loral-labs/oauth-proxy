@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
 
 	"lorallabs.com/oauth-server/cmd/utils"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
+	"lorallabs.com/oauth-server/internal/oauthserver"
 	"lorallabs.com/oauth-server/internal/store"
+
+	ory "github.com/ory/client-go"
 )
 
 func main() {
@@ -18,6 +23,12 @@ func main() {
 	}
 
 	oauthHandler := oauth.NewOAuthHandler(config, store)
+
+	// Use this context to access Ory APIs which require an Ory API Key.
+	var oryAuthedContext = context.WithValue(context.Background(), ory.ContextAccessToken, os.Getenv("ORY_API_KEY"))
+	oryClient := oauthserver.NewOryClient(oryAuthedContext)
+	oryClient.ListClients("")
+	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")
 
 	http.HandleFunc("/auth/", func(w http.ResponseWriter, r *http.Request) {
 		providerName := r.URL.Path[len("/auth/"):]
