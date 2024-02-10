@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
+	"lorallabs.com/oauth-server/internal/oauthserver"
 	"lorallabs.com/oauth-server/internal/store"
 	schema "lorallabs.com/oauth-server/pkg/db"
 )
@@ -38,7 +41,37 @@ type Endpoint struct {
 	Request     interface{}          `json:"request,omitempty"`  // Optional, adjust as needed
 }
 
-func RegisterDynamicEndpoints(store *store.Store) {
+// AuthMiddleware checks if the request is authenticated
+func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Split the header on the space to separate "Bearer" from the "<token>"
+		authHeader := r.Header.Get("Authorization")
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			http.Error(w, "Unauthorized - Invalid token format", http.StatusUnauthorized)
+			return
+		}
+		token := parts[1]
+
+		// get oryclient from context
+		o := ctx.Value("OryClient").(*oauthserver.OryClient)
+		log.Default().Printf("OryClient: %v, token: %s, provider: %s\n", o, token, provider)
+		introspected := o.IntrospectToken(token, provider)
+
+		log.Default().Printf("Introspected: %v\n", introspected)
+
+		// Check if token is active and in scope
+		if !introspected.Active {
+			http.Error(w, "Invalid Token or Out Of Scope", http.StatusUnauthorized)
+			return
+		}
+
+		// If authenticated, call the next handler
+		next(w, r)
+	}
+}
+
+func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
 	// Read the JSON file (adjust the path to where your JSON file is located)
 	configFile, err := os.Open("internal/apps/kroger/loral_manual.json")
 	if err != nil {
@@ -55,7 +88,7 @@ func RegisterDynamicEndpoints(store *store.Store) {
 	for _, endpoint := range config.Endpoints {
 		endpoint := endpoint // Create a new variable to avoid improper closure
 
-		http.HandleFunc("/"+config.Provider+"/"+endpoint.LoralPath, func(w http.ResponseWriter, r *http.Request) {
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Default().Printf("%s/%s hit", config.Provider, endpoint.LoralPath)
 
 			if r.Method != endpoint.HttpMethod {
@@ -148,5 +181,8 @@ func RegisterDynamicEndpoints(store *store.Store) {
 				return
 			}
 		})
+
+		// Wrap in AuthMiddleware
+		http.Handle("/"+config.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handler, config.Provider))
 	}
 }

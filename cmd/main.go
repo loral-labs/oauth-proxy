@@ -27,6 +27,9 @@ func main() {
 	// Use this context to access Ory APIs which require an Ory API Key.
 	var oryAuthedContext = context.WithValue(context.Background(), ory.ContextAccessToken, os.Getenv("ORY_API_KEY"))
 	oryClient := oauthserver.NewOryClient(oryAuthedContext)
+	// save OryClient to the context
+	ctx := context.WithValue(context.Background(), "OryClient", oryClient)
+
 	oryClient.ListClients("")
 	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")
 
@@ -47,7 +50,12 @@ func main() {
 	})
 
 	// Load and register dynamic endpoints
-	utils.RegisterDynamicEndpoints(store)
+	utils.RegisterDynamicEndpoints(ctx, store)
+
+	// Register a catch-all handler
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
 
 	log.Default().Println("Server started on :8081")
 	http.ListenAndServe(":8081", nil)
