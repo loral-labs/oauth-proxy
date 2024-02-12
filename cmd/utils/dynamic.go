@@ -3,16 +3,17 @@ package utils
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
+	"lorallabs.com/oauth-server/internal/config"
+	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
 	"lorallabs.com/oauth-server/internal/store"
+	"lorallabs.com/oauth-server/internal/types"
 	schema "lorallabs.com/oauth-server/pkg/db"
 )
 
@@ -54,11 +55,11 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 		token := parts[1]
 
 		// get oryclient from context
-		o := ctx.Value("OryClient").(*oauthserver.OryClient)
+		o := ctx.Value(types.OryClientKey).(*oauthserver.OryClient)
 		log.Default().Printf("OryClient: %v, token: %s, provider: %s\n", o, token, provider)
 		introspected := o.IntrospectToken(token, provider)
 
-		log.Default().Printf("Introspected: %v\n", introspected)
+		log.Default().Printf("Introspected: %s %s\n", introspected.Username)
 
 		// Check if token is active and in scope
 		if !introspected.Active {
@@ -71,7 +72,10 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 	}
 }
 
-func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
+func RegisterDynamicEndpoints(ctx context.Context) {
+	config := ctx.Value(types.ConfigKey).(*config.Config)
+	store := ctx.Value(types.StoreKey).(*store.Store)
+
 	// Read the JSON file (adjust the path to where your JSON file is located)
 	configFile, err := os.Open("internal/apps/kroger/loral_manual.json")
 	if err != nil {
@@ -80,16 +84,28 @@ func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
 	defer configFile.Close()
 
 	// Parse the JSON file into the Config struct
-	var config Config
-	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
+	var provider Config
+	if err := json.NewDecoder(configFile).Decode(&provider); err != nil {
 		log.Fatal(err)
 	}
 
-	for _, endpoint := range config.Endpoints {
+	oauthHandler := oauth.NewOAuthHandler(config, store)
+	http.HandleFunc("/"+provider.Provider+"/auth/", func(w http.ResponseWriter, r *http.Request) {
+		providerName := r.URL.Path[len("/auth/"):]
+		oauthHandler.HandleAuth(providerName, w, r)
+	})
+
+	http.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
+		providerName := r.URL.Path[len("/auth/callback/"):]
+		oauthHandler.HandleCallback(providerName, w, r)
+	})
+
+	// Provider function endpoints
+	for _, endpoint := range provider.Endpoints {
 		endpoint := endpoint // Create a new variable to avoid improper closure
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Default().Printf("%s/%s hit", config.Provider, endpoint.LoralPath)
+			log.Default().Printf("%s/%s hit", provider.Provider, endpoint.LoralPath)
 
 			if r.Method != endpoint.HttpMethod {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -117,33 +133,8 @@ func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
 				http.Error(w, "Client not found", http.StatusNotFound)
 				return
 			}
-			// make network request to get bearer token
-			tokenURL := fmt.Sprintf("http://%s/auth/token/?provider=%s&user_id=%s", r.Host, config.Provider, userId)
-			tokenReq, err := http.NewRequest(http.MethodGet, tokenURL, nil)
-			if err != nil {
-				http.Error(w, "Failed to create request for token: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			tokenResp, err := http.DefaultClient.Do(tokenReq)
-			if err != nil {
-				http.Error(w, "Failed to get token: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-			defer tokenResp.Body.Close()
-
-			if tokenResp.StatusCode != http.StatusOK {
-				http.Error(w, "Failed to get token, status code: "+strconv.Itoa(tokenResp.StatusCode), http.StatusInternalServerError)
-				return
-			}
-
-			var tokenData struct {
-				BearerToken string `json:"bearer_token"`
-			}
-			if err := json.NewDecoder(tokenResp.Body).Decode(&tokenData); err != nil {
-				http.Error(w, "Failed to decode token response: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
+			// bearerToken := oauthHandler.HandleGetToken(provider.Provider)
+			bearerToken := "oauthHandler.HandleGetToken(provider.Provider)"
 
 			// Construct a request to the true path
 			truePath := endpoint.TruePath
@@ -154,14 +145,14 @@ func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
 				}
 				truePath = truePath[:len(truePath)-1]
 			}
-			req, err := http.NewRequest(r.Method, config.APIRoot+truePath, r.Body)
+			req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			// Add authentication headers, if necessary
-			req.Header.Add("Authorization", "Bearer "+tokenData.BearerToken)
+			req.Header.Add("Authorization", "Bearer "+bearerToken)
 
 			// Forward the request to the true path
 			log.Default().Printf("Request: %v\n", req)
@@ -183,6 +174,6 @@ func RegisterDynamicEndpoints(ctx context.Context, store *store.Store) {
 		})
 
 		// Wrap in AuthMiddleware
-		http.Handle("/"+config.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handler, config.Provider))
+		http.Handle("/"+provider.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handler, provider.Provider))
 	}
 }

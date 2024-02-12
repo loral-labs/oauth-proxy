@@ -8,6 +8,7 @@ import (
 	"os"
 
 	ory "github.com/ory/client-go"
+	"lorallabs.com/oauth-server/internal/types"
 )
 
 type OryClient struct {
@@ -24,6 +25,37 @@ func NewOryClient(ctx context.Context) *OryClient {
 	}
 	ory := ory.NewAPIClient(configuration)
 	return &OryClient{ory: ory, ctx: ctx}
+}
+
+func (o *OryClient) Authorize() {
+	oryAuthedContext := o.ctx
+	apiClient := o.ory
+
+	resp, r, err := apiClient.OAuth2API.OAuth2Authorize(oryAuthedContext).Execute()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error when calling `OAuth2API.OAuth2Authorize``: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
+	}
+	// response from `OAuth2Authorize`: ErrorOAuth2
+	fmt.Fprintf(os.Stdout, "Response from `OAuth2API.OAuth2Authorize`: %v\n", resp)
+}
+
+func (o *OryClient) TokenServer() {
+	oryAuthedContext := o.ctx
+	apiClient := o.ory
+
+	grantType := "refresh_token"                                                                                     // string | refresh_token
+	clientId := "aca314fc-8db0-4840-857c-99343e7d40c7"                                                               // string |  (optional)
+	redirectUri := "http://127.0.0.1:4446/callback"                                                                  // string |  (optional)
+	refreshToken := "ory_rt_VJUb-5vv3rg4vKmY6Qr2vNK_AD_n1sVqh6n7jSAVCoo.at88DWAluCmCx2mPdGFIgQ7MhQley8fzu0baBAJUGLg" // string |  (optional)
+
+	resp, r, err := apiClient.OAuth2API.Oauth2TokenExchange(oryAuthedContext).GrantType(grantType).ClientId(clientId).RedirectUri(redirectUri).RefreshToken(refreshToken).Execute()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error when calling `OAuth2API.Oauth2TokenExchange``: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
+	}
+	// response from `Oauth2TokenExchange`: OAuth2TokenExchange
+	fmt.Fprintf(os.Stdout, "Response from `OAuth2API.Oauth2TokenExchange`: %v\n", resp)
 }
 
 func (o *OryClient) CreateClient() {
@@ -63,19 +95,7 @@ func (o *OryClient) ListClients(clientName string) {
 	}
 }
 
-// Patch Operation enum
-type Operation string
-
-const (
-	Replace Operation = "replace"
-	Add     Operation = "add"
-	Remove  Operation = "remove"
-	Move    Operation = "move"
-	Copy    Operation = "copy"
-	Test    Operation = "test"
-)
-
-func (o *OryClient) PatchClient(id string, op Operation, path string, value string) {
+func (o *OryClient) PatchClient(id string, op types.Operation, path string, value string) {
 	oryAuthedContext := o.ctx
 
 	jsonPatch := []ory.JsonPatch{*ory.NewJsonPatch(string(op), path)} // []JsonPatch | OAuth 2.0 Client JSON Patch Body

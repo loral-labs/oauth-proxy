@@ -1,7 +1,6 @@
 package oauth
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -97,21 +96,19 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 	}
 }
 
-func (h *OAuthHandler) HandleGetToken(providerName string, userID string, w http.ResponseWriter, r *http.Request) {
+func (h *OAuthHandler) HandleGetToken(providerName string, userID string) string {
 	// Find the provider in the database
 	dbProvider := &schema.Provider{}
 	err := h.Store.DB.Where("name = ?", providerName).First(&dbProvider).Error
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err.Error()
 	}
 
 	// Find the token for the user and provider
 	var providerToken schema.ProviderToken
 	err = h.Store.DB.Where("user_id = ? AND provider_id = ?", userID, dbProvider.ID).First(&providerToken).Error
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err.Error()
 	}
 
 	// check if the token is expired
@@ -119,13 +116,11 @@ func (h *OAuthHandler) HandleGetToken(providerName string, userID string, w http
 		// refresh the token
 		provider, exists := h.ProviderMap[providerName]
 		if !exists {
-			http.Error(w, "Unsupported provider", http.StatusBadRequest)
-			return
+			return err.Error()
 		}
 		token, err := provider.RefreshToken(providerToken.RefreshToken)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err.Error()
 		}
 		// update the token in the database
 		providerToken.AccessToken = token.AccessToken
@@ -133,12 +128,9 @@ func (h *OAuthHandler) HandleGetToken(providerName string, userID string, w http
 		providerToken.Expiry = time.Now().Add(time.Duration(token.Expiry) * time.Second).Unix()
 		err = h.Store.DB.Save(&providerToken).Error
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			return err.Error()
 		}
 	}
 
-	// return the bearer token
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"bearer_token": providerToken.AccessToken})
+	return providerToken.AccessToken
 }
