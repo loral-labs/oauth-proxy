@@ -1,13 +1,16 @@
 package oauth
 
 import (
+	"log"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth/providers"
 	"lorallabs.com/oauth-server/internal/oauth/providers/kroger"
 	"lorallabs.com/oauth-server/internal/store"
+	"lorallabs.com/oauth-server/internal/types"
 	schema "lorallabs.com/oauth-server/pkg/db"
 )
 
@@ -35,23 +38,35 @@ func InitializeProviders(config *config.Config) map[string]providers.Provider {
 
 // HandleAuth initiates the OAuth flow for a given provider
 func (h *OAuthHandler) HandleAuth(providerName string, w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userId := ctx.Value(types.OryUserIDKey).(uuid.UUID)
+
 	provider, exists := h.ProviderMap[providerName]
 	if !exists {
 		http.Error(w, "Unsupported provider", http.StatusBadRequest)
 		return
 	}
-	url := provider.GetAuthURL()
+
+	url := provider.GetAuthURL(userId)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 // HandleCallback handles the callback for a given provider
 func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter, r *http.Request) {
+	// get userID from query params
+	userId, err := uuid.Parse(r.URL.Query().Get("userID"))
+	if err != nil {
+		http.Error(w, "Missing userID", http.StatusBadRequest)
+		return
+	}
+
 	provider, exists := h.ProviderMap[providerName]
 	if !exists {
 		http.Error(w, "Unsupported provider", http.StatusBadRequest)
 		return
 	}
 	code := r.URL.Query().Get("code")
+	log.Default().Printf("Code: %s", code)
 	token, err := provider.ExchangeCodeForToken(code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,16 +86,18 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		Expiry:       time.Now().Add(time.Duration(token.Expiry) * time.Second).Unix(),
-		UserID:       1, // Replace with the actual user ID
+		UserID:       userId,
 		ProviderID:   dbProvider.ID,
 	}
+	// print the token
+	log.Default().Printf("Token: %+v", token)
+	log.Default().Printf("ProviderToken: %+v", token.AccessToken)
 
 	// If a token already exists for the user and provider, update it
 	var existingToken schema.ProviderToken
 	err = h.Store.DB.Where("user_id = ? AND provider_id = ?", providerToken.UserID, providerToken.ProviderID).First(&existingToken).Error
 	if err == nil {
 		providerToken.ID = existingToken.ID
-		providerToken.UUID = existingToken.UUID
 		err = h.Store.DB.Save(providerToken).Error
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

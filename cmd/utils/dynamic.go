@@ -9,12 +9,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/uuid"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
 	"lorallabs.com/oauth-server/internal/store"
 	"lorallabs.com/oauth-server/internal/types"
-	schema "lorallabs.com/oauth-server/pkg/db"
 )
 
 type Config struct {
@@ -56,10 +56,14 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 
 		// get oryclient from context
 		o := ctx.Value(types.OryClientKey).(*oauthserver.OryClient)
-		log.Default().Printf("OryClient: %v, token: %s, provider: %s\n", o, token, provider)
 		introspected := o.IntrospectToken(token, provider)
 
-		log.Default().Printf("Introspected: %s %s\n", introspected.Username)
+		oryUserID := introspected.GetSub()
+		userID, err := uuid.Parse(oryUserID)
+		if err != nil {
+			http.Error(w, "Invalid User ID", http.StatusUnauthorized)
+			return
+		}
 
 		// Check if token is active and in scope
 		if !introspected.Active {
@@ -67,8 +71,12 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 			return
 		}
 
+		// Create a new context with the bearer token
+		ctxWithToken := context.WithValue(ctx, types.BearerTokenKey, token)
+		ctxWithToken = context.WithValue(ctxWithToken, types.OryUserIDKey, userID)
+
 		// If authenticated, call the next handler
-		next(w, r)
+		next(w, r.WithContext(ctxWithToken))
 	}
 }
 
@@ -90,14 +98,13 @@ func RegisterDynamicEndpoints(ctx context.Context) {
 	}
 
 	oauthHandler := oauth.NewOAuthHandler(config, store)
-	http.HandleFunc("/"+provider.Provider+"/auth/", func(w http.ResponseWriter, r *http.Request) {
-		providerName := r.URL.Path[len("/auth/"):]
-		oauthHandler.HandleAuth(providerName, w, r)
+	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		oauthHandler.HandleAuth(provider.Provider, w, r)
 	})
+	http.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
 
 	http.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
-		providerName := r.URL.Path[len("/auth/callback/"):]
-		oauthHandler.HandleCallback(providerName, w, r)
+		oauthHandler.HandleCallback(provider.Provider, w, r)
 	})
 
 	// Provider function endpoints
@@ -111,33 +118,16 @@ func RegisterDynamicEndpoints(ctx context.Context) {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
-			params := r.URL.Query()
-			// return descriptive error if userId is missing
-			userId := params.Get("userId")
-			if userId == "" {
-				http.Error(w, "Missing userId, a stable and unique client identifier is required from you", http.StatusBadRequest)
-				return
-			}
-			// check that all required parameters are present
-			for key, value := range endpoint.Parameters {
-				if value.Required && params.Get(key) == "" {
-					http.Error(w, "Missing required parameter: "+key, http.StatusBadRequest)
-					return
-				}
-			}
 
-			// get token from userId
-			var clientRecord schema.Client
-			err := store.DB.Where("identifier = ?", params.Get("userId")).First(&clientRecord).Error
-			if err != nil {
-				http.Error(w, "Client not found", http.StatusNotFound)
-				return
-			}
-			// bearerToken := oauthHandler.HandleGetToken(provider.Provider)
-			bearerToken := "oauthHandler.HandleGetToken(provider.Provider)"
+			// Get oryUserID from context
+			oryUserID := r.Context().Value(types.OryUserIDKey).(string)
+
+			// Get the provider-specific bearer token from the user id
+			bearerToken := oauthHandler.HandleGetToken(provider.Provider, oryUserID)
 
 			// Construct a request to the true path
 			truePath := endpoint.TruePath
+			params := r.URL.Query()
 			if len(params) > 0 {
 				truePath += "?"
 				for key, value := range params {

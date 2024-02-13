@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"lorallabs.com/oauth-server/internal/oauth/providers"
 )
 
@@ -32,10 +34,13 @@ func (k *KrogerProvider) GetName() string {
 	return "kroger"
 }
 
-func (k *KrogerProvider) GetAuthURL() string {
+func (k *KrogerProvider) GetAuthURL(userID uuid.UUID) string {
 	scope := k.Scopes
-	return fmt.Sprintf("https://api.kroger.com/v1/connect/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s",
+	k.RedirectURI = fmt.Sprintf("%s?userID=%s", k.RedirectURI, userID.String())
+	authUrl := fmt.Sprintf("https://api.kroger.com/v1/connect/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s",
 		k.ClientID, url.QueryEscape(k.RedirectURI), url.QueryEscape(scope))
+	log.Printf("Auth URL: %s", authUrl)
+	return authUrl
 }
 
 func (k *KrogerProvider) ExchangeCodeForToken(code string) (*providers.Token, error) {

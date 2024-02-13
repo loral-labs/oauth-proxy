@@ -1,7 +1,9 @@
 package providers
 
+import "github.com/google/uuid"
+
 type Provider interface {
-	GetAuthURL() string
+	GetAuthURL(userId uuid.UUID) string
 	ExchangeCodeForToken(code string) (*Token, error)
 	RefreshToken(refreshToken string) (*Token, error)
 }

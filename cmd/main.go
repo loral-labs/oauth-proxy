@@ -26,14 +26,12 @@ func main() {
 	var ctx = context.WithValue(context.Background(), ory.ContextAccessToken, os.Getenv("ORY_API_KEY"))
 	oryClient := oauthserver.NewOryClient(ctx)
 
-	oryClient.Authorize()
-	oryClient.TokenServer()
-
 	ctx = context.WithValue(ctx, types.OryClientKey, oryClient)
 	ctx = context.WithValue(ctx, types.ConfigKey, config)
 	ctx = context.WithValue(ctx, types.StoreKey, store)
 
 	// oryClient.ListClients("")
+
 	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")
 
 	// Load and register dynamic endpoints

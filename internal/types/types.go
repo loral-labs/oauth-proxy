@@ -4,9 +4,11 @@ package types
 type ContextKey string
 
 const (
-	OryClientKey ContextKey = "OryClient"
-	ConfigKey    ContextKey = "Config"
-	StoreKey     ContextKey = "Store"
+	OryClientKey   ContextKey = "OryClient"
+	ConfigKey      ContextKey = "Config"
+	StoreKey       ContextKey = "Store"
+	BearerTokenKey ContextKey = "BearerToken"
+	OryUserIDKey   ContextKey = "OryUserID"
 )
 
 // Patch Operation enum
