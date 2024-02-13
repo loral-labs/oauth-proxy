@@ -24,6 +24,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/ory/client-go v1.6.1
+	github.com/rs/cors v1.10.1
 	golang.org/x/crypto v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )

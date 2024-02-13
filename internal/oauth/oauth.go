@@ -1,7 +1,6 @@
 package oauth
 
 import (
-	"log"
 	"net/http"
 	"time"
 
@@ -66,10 +65,13 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		return
 	}
 	code := r.URL.Query().Get("code")
-	log.Default().Printf("Code: %s", code)
 	token, err := provider.ExchangeCodeForToken(code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if (token.AccessToken == "") || (token.RefreshToken == "") {
+		http.Error(w, "Invalid token", http.StatusInternalServerError)
 		return
 	}
 
@@ -89,9 +91,6 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		UserID:       userId,
 		ProviderID:   dbProvider.ID,
 	}
-	// print the token
-	log.Default().Printf("Token: %+v", token)
-	log.Default().Printf("ProviderToken: %+v", token.AccessToken)
 
 	// If a token already exists for the user and provider, update it
 	var existingToken schema.ProviderToken

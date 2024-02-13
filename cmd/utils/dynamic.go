@@ -80,7 +80,7 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 	}
 }
 
-func RegisterDynamicEndpoints(ctx context.Context) {
+func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 	config := ctx.Value(types.ConfigKey).(*config.Config)
 	store := ctx.Value(types.StoreKey).(*store.Store)
 
@@ -99,11 +99,13 @@ func RegisterDynamicEndpoints(ctx context.Context) {
 
 	oauthHandler := oauth.NewOAuthHandler(config, store)
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Default().Printf("%s/auth hit", provider.Provider)
 		oauthHandler.HandleAuth(provider.Provider, w, r)
 	})
-	http.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
+	handler.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
 
-	http.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
+	println("Registering dynamic endpoints")
+	handler.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
 		oauthHandler.HandleCallback(provider.Provider, w, r)
 	})
 
@@ -111,7 +113,7 @@ func RegisterDynamicEndpoints(ctx context.Context) {
 	for _, endpoint := range provider.Endpoints {
 		endpoint := endpoint // Create a new variable to avoid improper closure
 
-		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Default().Printf("%s/%s hit", provider.Provider, endpoint.LoralPath)
 
 			if r.Method != endpoint.HttpMethod {
@@ -164,6 +166,6 @@ func RegisterDynamicEndpoints(ctx context.Context) {
 		})
 
 		// Wrap in AuthMiddleware
-		http.Handle("/"+provider.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handler, provider.Provider))
+		handler.Handle("/"+provider.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handlerFunc, provider.Provider))
 	}
 }
