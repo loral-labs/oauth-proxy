@@ -3,7 +3,7 @@ package providers
 import "github.com/google/uuid"
 
 type Provider interface {
-	GetAuthURL(userId uuid.UUID) string
+	GetAuthURL(userId uuid.UUID, clientRedirectURI string) string
 	ExchangeCodeForToken(code string) (*Token, error)
 	RefreshToken(refreshToken string) (*Token, error)
 }

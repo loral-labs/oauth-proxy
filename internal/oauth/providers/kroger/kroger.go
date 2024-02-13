@@ -34,11 +34,11 @@ func (k *KrogerProvider) GetName() string {
 	return "kroger"
 }
 
-func (k *KrogerProvider) GetAuthURL(userID uuid.UUID) string {
+func (k *KrogerProvider) GetAuthURL(userID uuid.UUID, clientRedirectURI string) string {
 	scope := k.Scopes
-	k.RedirectURI = fmt.Sprintf("%s?userID=%s", k.RedirectURI, userID.String())
+	redirect_uri := fmt.Sprintf("%s?userID=%s&clientRedirectURI=%s", k.RedirectURI, userID.String(), clientRedirectURI)
 	authUrl := fmt.Sprintf("https://api.kroger.com/v1/connect/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s",
-		k.ClientID, url.QueryEscape(k.RedirectURI), url.QueryEscape(scope))
+		k.ClientID, url.QueryEscape(redirect_uri), url.QueryEscape(scope))
 	log.Printf("Auth URL: %s", authUrl)
 	return authUrl
 }
