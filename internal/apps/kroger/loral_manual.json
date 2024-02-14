@@ -4,7 +4,7 @@
   "endpoints": {
     "search": {
       "id": "products.product.search",
-      "loralPath": "products/search",
+      "loralPath": "v1/products",
       "truePath": "products",
       "httpMethod": "GET",
       "description": "Allows you to find products by passing in either a search term or product Id.\nInitial Search Value Required",
@@ -74,7 +74,7 @@
     },
     "add": {
       "id": "cart.add",
-      "loralPath": "cart/add",
+      "loralPath": "v1/cart/add",
       "truePath": "cart/add",
       "httpMethod": "PUT",
       "description": "Provides access to add items to an authenticated customer's cart.",

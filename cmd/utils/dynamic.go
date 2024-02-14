@@ -120,7 +120,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 			}
 
 			// Get oryUserID from context
-			oryUserID := r.Context().Value(types.OryUserIDKey).(string)
+			oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
 
 			// Get the provider-specific bearer token from the user id
 			bearerToken := oauthHandler.HandleGetToken(provider.Provider, oryUserID)

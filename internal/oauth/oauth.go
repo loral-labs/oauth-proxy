@@ -128,7 +128,7 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 	http.Redirect(w, r, clientRedirectURI, http.StatusTemporaryRedirect)
 }
 
-func (h *OAuthHandler) HandleGetToken(providerName string, userID string) string {
+func (h *OAuthHandler) HandleGetToken(providerName string, userID uuid.UUID) string {
 	// Find the provider in the database
 	dbProvider := &schema.Provider{}
 	err := h.Store.DB.Where("name = ?", providerName).First(&dbProvider).Error
