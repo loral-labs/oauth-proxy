@@ -64,7 +64,7 @@ func processSearchHits(searchHits []Hit) (interface{}, error) {
 		}
 		httpSpec := hit.Source
 
-		specPath := filepath.Join("./data/kroger", httpSpec.SpecFilePath)
+		specPath := filepath.Join("data/kroger", httpSpec.SpecFilePath)
 		spec, err := loadJSON(specPath)
 		if err != nil {
 			return nil, err

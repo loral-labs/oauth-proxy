@@ -211,7 +211,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 		})
 
 		// Wrap in AuthMiddleware
-		log.Default().Printf("Registering %s", "/"+provider.Name+path)
-		handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name))
+		log.Default().Printf("Registering %s, %s", method, "/"+provider.Name+path)
+		handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name)).Methods(method)
 	}
 }
