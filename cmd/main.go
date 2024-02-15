@@ -12,6 +12,7 @@ import (
 	"lorallabs.com/oauth-server/internal/store"
 	"lorallabs.com/oauth-server/internal/types"
 
+	"github.com/gorilla/mux"
 	ory "github.com/ory/client-go"
 	"github.com/rs/cors"
 )
@@ -44,12 +45,12 @@ func main() {
 	// oryClient.ListClients("")
 	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")
 
-	// Register a catch-all handler
-	handler := http.NewServeMux()
+	handler := mux.NewRouter()
 
 	// Load and register dynamic endpoints
 	utils.RegisterDynamicEndpoints(ctx, handler)
 
+	// Register a catch-all 404 handler
 	handler.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		println("Catch-all handler")
 		http.NotFound(w, r)
