@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -18,6 +19,9 @@ import (
 )
 
 func main() {
+	laxAuthFlag := flag.Bool("lax_auth", false, "accept expired or out-of-scope tokens for testing purposes")
+	flag.Parse()
+
 	config := config.LoadConfig()
 	store, err := store.NewStore(config.DBConnectionString)
 	if err != nil {
@@ -41,6 +45,7 @@ func main() {
 	ctx = context.WithValue(ctx, types.OryClientKey, oryClient)
 	ctx = context.WithValue(ctx, types.ConfigKey, config)
 	ctx = context.WithValue(ctx, types.StoreKey, store)
+	ctx = context.WithValue(ctx, types.LaxAuthFlag, laxAuthFlag)
 
 	// oryClient.ListClients("")
 	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")

@@ -28,6 +28,9 @@ type Provider struct {
 // AuthMiddleware checks if the request is authenticated
 func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Accept expired or out-of-scope tokens for testing purposes
+		laxAuthFlag := ctx.Value(types.LaxAuthFlag).(*bool)
+
 		// Split the header on the space to separate "Bearer" from the "<token>"
 		authHeader := r.Header.Get("Authorization")
 		parts := strings.Split(authHeader, " ")
@@ -49,7 +52,7 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 		}
 
 		// Check if token is active and in scope
-		if !introspected.Active {
+		if !introspected.Active && !*laxAuthFlag {
 			http.Error(w, "Invalid Token or Out Of Scope", http.StatusUnauthorized)
 			return
 		}
