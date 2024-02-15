@@ -2,13 +2,15 @@ package utils
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
@@ -17,29 +19,10 @@ import (
 	"lorallabs.com/oauth-server/internal/types"
 )
 
-type Config struct {
-	Provider  string              `json:"provider"`
-	APIRoot   string              `json:"apiroot"`
-	Endpoints map[string]Endpoint `json:"endpoints"`
-}
-
-type Parameter struct {
-	Type        string `json:"type"`
-	Required    bool   `json:"required"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	Format      string `json:"format,omitempty"` // Optional, only for integer parameters
-}
-
-type Endpoint struct {
-	ID          string               `json:"id"`
-	LoralPath   string               `json:"loralPath"`
-	TruePath    string               `json:"truePath"`
-	HttpMethod  string               `json:"httpMethod"`
-	Description string               `json:"description,omitempty"` // Optional
-	Parameters  map[string]Parameter `json:"parameters"`
-	Response    interface{}          `json:"response,omitempty"` // Optional, adjust as needed
-	Request     interface{}          `json:"request,omitempty"`  // Optional, adjust as needed
+type Provider struct {
+	Name    string
+	APIRoot string
+	Paths   map[string]openapi3.PathItem
 }
 
 // AuthMiddleware checks if the request is authenticated
@@ -84,37 +67,78 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 	config := ctx.Value(types.ConfigKey).(*config.Config)
 	store := ctx.Value(types.StoreKey).(*store.Store)
 
-	// Read the JSON file (adjust the path to where your JSON file is located)
-	configFile, err := os.Open("internal/apps/kroger/loral_manual.json")
+	// create an instance of the Provider struct
+	provider := Provider{
+		Name:    "kroger",
+		APIRoot: "https://api.kroger.com",
+		Paths:   make(map[string]openapi3.PathItem),
+	}
+	dirPath := "internal/apps/" + provider.Name
+	files, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		log.Fatal(err)
-	}
-	defer configFile.Close()
-
-	// Parse the JSON file into the Config struct
-	var provider Config
-	if err := json.NewDecoder(configFile).Decode(&provider); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to read directory: %v", err)
 	}
 
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+
+	// parse all files for openapi3 paths
+	for _, file := range files {
+		if !file.IsDir() {
+			filePath := filepath.Join(dirPath, file.Name())
+			fmt.Println("Loading file:", filePath)
+			// Here you can add your file loading and processing logic
+			doc, err := loader.LoadFromFile(filePath)
+			if err != nil {
+				log.Fatalf("Failed to load OpenAPI document: %v", err)
+			}
+
+			if err := doc.Validate(ctx); err != nil {
+				log.Fatalf("Failed to validate OpenAPI document: %v", err)
+			}
+
+			// add to allPaths
+			paths := *doc.Paths
+			for path, pathItem := range paths.Map() {
+				provider.Paths[path] = *pathItem
+			}
+		}
+	}
+
+	// auth to the provider
 	oauthHandler := oauth.NewOAuthHandler(config, store)
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		oauthHandler.HandleAuth(provider.Provider, w, r)
+		oauthHandler.HandleAuth(provider.Name, w, r)
 	})
-	handler.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
+	handler.Handle("/"+provider.Name+"/auth/", AuthMiddleware(ctx, authHandler, provider.Name))
 
-	handler.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
-		oauthHandler.HandleCallback(provider.Provider, w, r)
+	// search for endpoints
+	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
+
+	// handle oauth callback from provider
+	handler.HandleFunc("/"+provider.Name+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
+		oauthHandler.HandleCallback(provider.Name, w, r)
 	})
 
 	// Provider function endpoints
-	for _, endpoint := range provider.Endpoints {
-		endpoint := endpoint // Create a new variable to avoid improper closure
+	for path, pathItem := range provider.Paths {
+		// Create new variables to avoid improper closure
+		path := path
+		pathItem := pathItem
+
+		// FIX ME - assumes only one method per path
+		var method string
+		var operation *openapi3.Operation
+		for temp_method, temp_op := range pathItem.Operations() {
+			operation = temp_op
+			method = temp_method
+			break
+		}
 
 		handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Default().Printf("%s/%s hit", provider.Provider, endpoint.LoralPath)
+			log.Default().Printf("%s/%s hit", provider.Name, path)
 
-			if r.Method != endpoint.HttpMethod {
+			if r.Method != method {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
@@ -123,12 +147,23 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 			oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
 
 			// Get the provider-specific bearer token from the user id
-			bearerToken := oauthHandler.HandleGetToken(provider.Provider, oryUserID)
+			bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
 
 			// Construct a request to the true path
-			truePath := endpoint.TruePath
+			truePath := path
 			params := r.URL.Query()
 			if len(params) > 0 {
+				// verify that required parameters are present
+				for _, parameter := range operation.Parameters {
+					p := *parameter.Value
+					if p.Required {
+						if _, ok := params[p.Name]; !ok {
+							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+							return
+						}
+					}
+				}
+
 				truePath += "?"
 				for key, value := range params {
 					truePath += key + "=" + value[0] + "&"
@@ -164,6 +199,6 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 		})
 
 		// Wrap in AuthMiddleware
-		handler.Handle("/"+provider.Provider+"/"+endpoint.LoralPath, AuthMiddleware(ctx, handlerFunc, provider.Provider))
+		handler.Handle("/"+provider.Name+"/"+path, AuthMiddleware(ctx, handlerFunc, provider.Name))
 	}
 }

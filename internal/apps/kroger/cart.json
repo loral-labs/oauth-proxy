@@ -1,0 +1,841 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cart API",
+    "description": "The Cart API allows you to add an item to an authenticated customer's cart. <br><br>\n\n### Rate Limit\n\nThe Public Cart API has a **5,000 call per day** rate limit. \n",
+    "termsOfService": "https://developer.kroger.com/terms",
+    "contact": {
+      "name": "API Support",
+      "email": "APISupport@kroger.com",
+      "url": "https://developer.kroger.com"
+    },
+    "version": "1.2.2"
+  },
+  "servers": [
+    {
+      "url": "https://api.kroger.com",
+      "description": "Production Environment"
+    },
+    {
+      "url": "https://api-ce.kroger.com",
+      "description": "Certification Environment"
+    }
+  ],
+  "security": [
+    {
+      "CustomerContext": [
+        "cart.basic:write"
+      ]
+    }
+  ],
+  "paths": {
+    "/v1/cart/add": {
+      "put": {
+        "tags": [
+          "Carts"
+        ],
+        "summary": "Add to cart",
+        "description": "Provides access to add items to an authenticated customer's cart. \n<br><br> **Note**: the customer must be authenticated using the\nOAuth2 Authorization Code grant type.\n",
+        "operationId": "putCarts",
+        "requestBody": {
+          "description": "A list of items that you are adding to the cart.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/cart.cartItemRequestModel"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.cart.ok"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/APIError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_UPC"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_modality"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_parameters"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.forbidden"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.cart.serverError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerContext": [
+              "cart.basic:write"
+            ]
+          }
+        ],
+        "x-code-samples": [
+          {
+            "lang": "Shell",
+            "source": "curl -X PUT \\\n  'https://api.kroger.com/v1/cart/add' \\\n  -H 'Accept: application/json' \\\n  -H 'Authorization: Bearer {{TOKEN}}' \\\n  -d '\n{\n  \"items\": [\n    {\n      \"upc\": \"0001200016268\",\n      \"quantity\": 2,\n      \"modality\": \"PICKUP\"\n    }\n  ]\n}'\n"
+          },
+          {
+            "lang": "Go",
+            "source": "package main\n\nimport (\n  \"fmt\"\n  \"strings\"\n  \"net/http\"\n  \"io/ioutil\"\n)\n\nfunc main() {\n\n  url := \"https://api.kroger.com/v1/cart/add\"\n\n  payload := strings.NewReader(\"{\\n  \\\"items\\\": [\\n     {\\n       \\\"upc\\\": \\\"0001200016268\\\",\\n       \\\"quantity\\\": \\2,\\n       \\\"modality\\\": \\\"PICKUP\\\"\\\\n      }\\n    ]\\n }\")\n\n  req, _ := http.NewRequest(\"PUT\", url, payload)\n\n  req.Header.Add(\"Accept\", \"application/json\")\n  req.Header.Add(\"Authorization\", \"Bearer {{TOKEN}}\")\n\n  res, _ := http.DefaultClient.Do(req)\n\n  defer res.Body.Close()\n  body, _ := ioutil.ReadAll(res.Body)\n\n  fmt.Println(res)\n  fmt.Println(string(body))\n\n}\n"
+          },
+          {
+            "lang": "JavaScript",
+            "source": "var settings = {\n  \"async\": true,\n  \"crossDomain\": true,\n  \"url\": \"https://api.kroger.com/v1/cart/add\",\n  \"method\": \"PUT\",\n  \"headers\": {\n    \"Accept\": \"application/json\",\n    \"Authorization\": \"Bearer {{TOKEN}}\",\n  },\n  \"processData\": false,\n  \"data\": \"{\\n  \\\"items\\\": [\\n     {\\n       \\\"upc\\\": \\\"0001200016268\\\",\\n       \\\"quantity\\\": \\2,\\n       \\\"modality\\\": \\\"PICKUP\\\"\\\\n      }\\n    ]\\n }\"\n}\n\n$.ajax(settings).done(function (response) {\n  console.log(response);\n});\n"
+          },
+          {
+            "lang": "Java",
+            "source": "OkHttpClient client = new OkHttpClient();\n\nMediaType mediaType = MediaType.parse(\"application/json\");\nRequestBody body = RequestBody.create(mediaType, \"{\\n  \\\"items\\\": [\\n     {\\n       \\\"upc\\\": \\\"0001200016268\\\",\\n       \\\"quantity\\\": \\2,\\n       \\\"modality\\\": \\\"PICKUP\\\"\\\\n      }\\n    ]\\n }\");\nRequest request = new Request.Builder()\n  .url(\"https://api.kroger.com/v1/cart/add\")\n  .put(body)\n  .addHeader(\"Accept\", \"application/json\")\n  .addHeader(\"Authorization\", \"Bearer {{TOKEN}}\")\n  .build();\n\nResponse response = client.newCall(request).execute();\n"
+          }
+        ]
+      }
+    },
+    "/v1/connect/oauth2/authorize": {
+      "get": {
+        "tags": [
+          "OAuth2"
+        ],
+        "summary": "Authorization Code",
+        "description": "The redirect URL to authenticate a customer and receive an authorization code.",
+        "operationId": "authorizationCode",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "description": "The level of access your application is requesting.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cart.basic:rw"
+              ]
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "description": "Your application's client ID.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "redirect_uri",
+            "in": "query",
+            "description": "Your registered redirect URL. The redirect URL is used by the server to redirect the web browser with the authorization  code once the customer has given consent.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "response_type",
+            "in": "query",
+            "description": "Is always `code`.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "A random string to verify that the response belongs to the initiated  request. The server should always return the same state as the one specified in  the request to protect against forgery attacks.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "301": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/oauth2.codeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Invalid_scope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_grant_type"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_redirect_uri"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_access"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_credentials"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.auth.serverError"
+                }
+              }
+            }
+          }
+        },
+        "x-code-samples": [
+          {
+            "lang": "html",
+            "source": "https://api.kroger.com/v1/connect/oauth2/authorize?scope={{SCOPES}}&response_type=code&client_id={{CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}"
+          }
+        ]
+      }
+    },
+    "/v1/connect/oauth2/token": {
+      "post": {
+        "tags": [
+          "OAuth2"
+        ],
+        "summary": "Access Token",
+        "description": "The OAuth2 endpoint that provides access tokens.",
+        "operationId": "accessToken",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Your `client_id:client_secret` base64 encoded.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/client_credentials"
+                  },
+                  {
+                    "$ref": "#/components/schemas/authorization_code"
+                  },
+                  {
+                    "$ref": "#/components/schemas/refresh_token"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "grant_type"
+                }
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/client_credentialsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/authorization_codeResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/refresh_tokenResponse"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Invalid_code"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_scope"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_grant_type"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_refresh_token"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Invalid_credentials"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError.auth.serverError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "CustomerContext": [
+              "cart.basic:write"
+            ]
+          }
+        ],
+        "x-code-samples": [
+          {
+            "lang": "Shell",
+            "source": "curl -X POST \\\n  'https://api.kroger.com/v1/connect/oauth2/token' \\\n  -H 'Content-Type: application/x-www-form-urlencoded' \\\n  -H 'Authorization: Basic {{base64(“CLIENT_ID:CLIENT_SECRET”)}}' \\\n  -d 'grant_type=client_credentials&scope={{SCOPE}}'\n"
+          },
+          {
+            "lang": "Go",
+            "source": "package main\n\nimport (\n  \"fmt\"\n  \"strings\"\n  \"net/http\"\n  \"io/ioutil\"\n)\n\nfunc main() {\n\n  url := \"https://api.kroger.com/v1/connect/oauth2/token\"\n\n  payload := strings.NewReader(\"grant_type=client_credentials&scope={{SCOPE}}\")\n\n  req, _ := http.NewRequest(\"POST\", url, payload)\n\n  req.Header.Add(\"Content-Type\", \"application/x-www-form-urlencoded\")\n  req.Header.Add(\"Authorization\", \"Basic {{base64(“CLIENT_ID:CLIENT_SECRET”)}}\")\n\n  res, _ := http.DefaultClient.Do(req)\n\n  defer res.Body.Close()\n  body, _ := ioutil.ReadAll(res.Body)\n\n  fmt.Println(res)\n  fmt.Println(string(body))\n\n}\n"
+          },
+          {
+            "lang": "JavaScript",
+            "source": "var settings = {\n  \"async\": true,\n  \"crossDomain\": true,\n  \"url\": \"https://api.kroger.com/v1/connect/oauth2/token\",\n  \"method\": \"POST\",\n  \"headers\": {\n    \"Content-Type\": \"application/x-www-form-urlencoded\",\n    \"Authorization\": \"Basic {{base64(“CLIENT_ID:CLIENT_SECRET”)}}\"\n  },\n  \"data\": {\n    \"grant_type\": \"client_credentials\",\n    \"scope\": \"{{scope}}\"\n  }\n}\n\n$.ajax(settings).done(function (response) {\n  console.log(response);\n});\n"
+          },
+          {
+            "lang": "Java",
+            "source": "OkHttpClient client = new OkHttpClient();\n\nMediaType mediaType = MediaType.parse(\"application/x-www-form-urlencoded\");\nRequestBody body = RequestBody.create(mediaType, \"grant_type=client_credentials&scope={{SCOPE}}\");\nRequest request = new Request.Builder()\n  .url(\"https://api.kroger.com/v1/connect/oauth2/token\")\n  .post(body)\n  .addHeader(\"Content-Type\", \"application/x-www-form-urlencoded\")\n  .addHeader(\"Authorization\", \"Basic {{base64(“CLIENT_ID:CLIENT_SECRET”)}}\")\n  .build();\n\nResponse response = client.newCall(request).execute();\n"
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "APIError": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "number"
+          },
+          "code": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "APIError.auth.serverError": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "example": "Internal server error"
+              },
+              "code": {
+                "type": "string",
+                "example": "Auth-4xxx-xxx"
+              },
+              "timestamp": {
+                "type": "number",
+                "example": 1564159296910
+              }
+            }
+          }
+        }
+      },
+      "APIError.unauthorized": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "object",
+            "properties": {
+              "error_description": {
+                "type": "string",
+                "example": "The access token is invalid or has expired"
+              },
+              "error": {
+                "type": "string",
+                "example": "invalid_token"
+              }
+            }
+          }
+        }
+      },
+      "APIError.forbidden": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "example": "missing required scopes"
+              },
+              "code": {
+                "type": "string",
+                "example": "Forbidden"
+              },
+              "timestamp": {
+                "type": "number",
+                "example": 1564143270221
+              }
+            }
+          }
+        }
+      },
+      "authorization_codeResponse": {
+        "type": "object",
+        "properties": {
+          "expires_in": {
+            "type": "number",
+            "description": "",
+            "example": 1800
+          },
+          "access_token": {
+            "type": "string",
+            "description": "",
+            "example": "eyJh5GciOiJSUzI1NiGsImtpZCI6Ilo0RnQzbXNrSUj4OGlydDdMQjVjNmc2PSIsInR5cCI6IkpXVmJ9.eqJzY29wZSI6InByb2T1Y3QuY29tcGFjdCBjb3Vwb24uYmFzaWMiLCJhdXRoQXQiOjE1NjUwOTk0OTUzMzIzOTIxMTIsImF1ZCI6InBlcmsvcm1hbmNlLWFnZW50LXB1YmxpYyIsImV4cCI6MTU2NTEwMTI5NSwiaWF0IjoxNTY1MDk5BDkwLCJpc3MiOiJhcGkua3JvZ2VyLmNvbSIsInN1YiI6IjBmZjdkMGIwLWVkOGItNDJmOS1hNTExLWEzMGQyYTAyZDljNSJ9.ej0mov6SGV4n4HiAvduTdYCceMlSo3T06M4Nfh3MfpIjSKzKaLWgd5S0W1EKDXrWz8IE7NTg8EIrL-WKhwdZPt-TWaS7LLjRXLJ0w5rKc44DStgBdvDiCcnKeMsnimjhBlHOiiKUV5y3GbVqJzaDVZwg0j8lP9qtwZP9EIIQ7k409nkskY1pz7l1lZrGotYRJKmnteN5vVQeZ3R8jywIwOOSEbKSgQALVA3Oj02964P7lI6h1GsZ66V5FLA9KU8QXm4ejrFHf1beAIA2zi_fQI3dmW7yj57pWoCECZIjq7Sfo3nGR5rkjEwfyXEK7aTn8oj4_14YHgKRTY-28L96cw"
+          },
+          "token_type": {
+            "type": "string",
+            "description": "",
+            "example": "bearer"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "",
+            "example": "FN20LbaF2EWC6MPMWdemBwwnP4ZmX8"
+          }
+        }
+      },
+      "client_credentials": {
+        "required": [
+          "grant_type"
+        ],
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "Must be `client_credentials`.",
+            "example": "client_credentials"
+          },
+          "scope": {
+            "type": "string",
+            "description": "The level of access your application is requesting.",
+            "example": "cart.basic:write",
+            "enum": [
+              "cart.basic:write"
+            ]
+          }
+        }
+      },
+      "client_credentialsResponse": {
+        "type": "object",
+        "properties": {
+          "expires_in": {
+            "type": "number",
+            "description": "",
+            "example": 1800
+          },
+          "access_token": {
+            "type": "string",
+            "description": "",
+            "example": "eyJh5GciOiJSUzI1NiGsImtpZCI6Ilo0RnQzbXNrSUj4OGlydDdMQjVjNmc2PSIsInR5cCI6IkpXVmJ9.eqJzY29wZSI6InByb2T1Y3QuY29tcGFjdCBjb3Vwb24uYmFzaWMiLCJhdXRoQXQiOjE1NjUwOTk0OTUzMzIzOTIxMTIsImF1ZCI6InBlcmsvcm1hbmNlLWFnZW50LXB1YmxpYyIsImV4cCI6MTU2NTEwMTI5NSwiaWF0IjoxNTY1MDk5BDkwLCJpc3MiOiJhcGkua3JvZ2VyLmNvbSIsInN1YiI6IjBmZjdkMGIwLWVkOGItNDJmOS1hNTExLWEzMGQyYTAyZDljNSJ9.ej0mov6SGV4n4HiAvduTdYCceMlSo3T06M4Nfh3MfpIjSKzKaLWgd5S0W1EKDXrWz8IE7NTg8EIrL-WKhwdZPt-TWaS7LLjRXLJ0w5rKc44DStgBdvDiCcnKeMsnimjhBlHOiiKUV5y3GbVqJzaDVZwg0j8lP9qtwZP9EIIQ7k409nkskY1pz7l1lZrGotYRJKmnteN5vVQeZ3R8jywIwOOSEbKSgQALVA3Oj02964P7lI6h1GsZ66V5FLA9KU8QXm4ejrFHf1beAIA2zi_fQI3dmW7yj57pWoCECZIjq7Sfo3nGR5rkjEwfyXEK7aTn8oj4_14YHgKRTY-28L96cw"
+          },
+          "token_type": {
+            "type": "string",
+            "description": "",
+            "example": "bearer"
+          }
+        }
+      },
+      "Invalid_scope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid_scope"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "invalid scope"
+          }
+        }
+      },
+      "Invalid_grant_type": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "unsupported_grant_type"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "invalid grant_type"
+          }
+        }
+      },
+      "Invalid_refresh_token": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid_request"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "invalid refresh_token"
+          }
+        }
+      },
+      "refresh_token": {
+        "required": [
+          "refresh_token",
+          "grant_type"
+        ],
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "Must be `refresh_token`.",
+            "example": "refresh_token"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "The refresh token returned from the server.",
+            "example": "FN20LbaF2EWC6MPMWdemBwwnP4ZmX8"
+          }
+        }
+      },
+      "refresh_tokenResponse": {
+        "type": "object",
+        "properties": {
+          "expires_in": {
+            "type": "number",
+            "description": "",
+            "example": 1800
+          },
+          "access_token": {
+            "type": "string",
+            "description": "",
+            "example": "eyJh5GciOiJSUzI1NiGsImtpZCI6Ilo0RnQzbXNrSUj4OGlydDdMQjVjNmc2PSIsInR5cCI6IkpXVmJ9.eqJzY29wZSI6InByb2T1Y3QuY29tcGFjdCBjb3Vwb24uYmFzaWMiLCJhdXRoQXQiOjE1NjUwOTk0OTUzMzIzOTIxMTIsImF1ZCI6InBlcmsvcm1hbmNlLWFnZW50LXB1YmxpYyIsImV4cCI6MTU2NTEwMTI5NSwiaWF0IjoxNTY1MDk5BDkwLCJpc3MiOiJhcGkua3JvZ2VyLmNvbSIsInN1YiI6IjBmZjdkMGIwLWVkOGItNDJmOS1hNTExLWEzMGQyYTAyZDljNSJ9.ej0mov6SGV4n4HiAvduTdYCceMlSo3T06M4Nfh3MfpIjSKzKaLWgd5S0W1EKDXrWz8IE7NTg8EIrL-WKhwdZPt-TWaS7LLjRXLJ0w5rKc44DStgBdvDiCcnKeMsnimjhBlHOiiKUV5y3GbVqJzaDVZwg0j8lP9qtwZP9EIIQ7k409nkskY1pz7l1lZrGotYRJKmnteN5vVQeZ3R8jywIwOOSEbKSgQALVA3Oj02964P7lI6h1GsZ66V5FLA9KU8QXm4ejrFHf1beAIA2zi_fQI3dmW7yj57pWoCECZIjq7Sfo3nGR5rkjEwfyXEK7aTn8oj4_14YHgKRTY-28L96cw"
+          },
+          "token_type": {
+            "type": "string",
+            "description": "",
+            "example": "bearer"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "",
+            "example": "FN20LbaF2EWC6MPMWdemBwwnP4ZmX8"
+          }
+        }
+      },
+      "oauth2.codeResponse": {
+        "type": "string",
+        "description": "Your registered redirect with the authorization code appended to the URL.",
+        "example": "https://YourRedirectUri.com/callback?code=zWrT1GkdshSadIowJW0Rm4w2kKhOzv1W"
+      },
+      "Invalid_access": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid_request"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "The resource owner denied the request"
+          }
+        }
+      },
+      "Invalid_credentials": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "unauthorized"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "invalid credentials"
+          }
+        }
+      },
+      "Invalid_redirect_uri": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid_request"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "The redirect_uri did not match the registered redirect_uri for this application"
+          }
+        }
+      },
+      "Invalid_code": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "invalid_request"
+          },
+          "error_description": {
+            "type": "string",
+            "example": "invalid code"
+          }
+        }
+      },
+      "Invalid_UPC": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "number",
+            "example": 1569851999383
+          },
+          "code": {
+            "type": "string",
+            "example": "API-4101-400"
+          },
+          "reason": {
+            "type": "string",
+            "example": "UPC must have a length of 13 characters"
+          }
+        }
+      },
+      "Invalid_parameters": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "number",
+            "example": 1569851999383
+          },
+          "code": {
+            "type": "string",
+            "example": "API-4101-400"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Cannot parse parameters"
+          }
+        }
+      },
+      "Invalid_modality": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "number",
+            "example": 1569851999383
+          },
+          "code": {
+            "type": "string",
+            "example": "API-4101-400"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Modality must be omitted or equal one of the following codes: DELIVERY, PICKUP"
+          }
+        }
+      },
+      "APIError.cart.serverError": {
+        "type": "object",
+        "properties": {
+          "errors": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "example": "Internal server error"
+              },
+              "code": {
+                "type": "string",
+                "example": "CART-4xxx-xxx"
+              },
+              "timestamp": {
+                "type": "number",
+                "example": 1564159296910
+              }
+            }
+          }
+        }
+      },
+      "cart.cartItemModel": {
+        "required": [
+          "quantity",
+          "upc"
+        ],
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "description": "The quantity of the item.",
+            "example": 1
+          },
+          "upc": {
+            "type": "string",
+            "description": "The `UPC` of the item.",
+            "example": "0001111060903"
+          },
+          "modality": {
+            "type": "string",
+            "description": "An optional value representing a modality including: DELIVERY, PICKUP.",
+            "enum": [
+              "DELIVERY",
+              "PICKUP"
+            ],
+            "default": "PICKUP"
+          }
+        }
+      },
+      "cart.cartItemRequestModel": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "An array of items in the cart.",
+            "items": {
+              "$ref": "#/components/schemas/cart.cartItemModel"
+            }
+          }
+        }
+      },
+      "APIError.cart.ok": {
+        "type": "object"
+      },
+      "authorization_code": {
+        "required": [
+          "code",
+          "grant_type",
+          "redirect_uri"
+        ],
+        "type": "object",
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "Must be `authorization_code`.",
+            "example": "code"
+          },
+          "code": {
+            "type": "string",
+            "description": "The authorization code returned from the server.",
+            "example": "zWrT1GkdshSadIowJW0Rm4w2kKhOzv1W"
+          },
+          "redirect_uri": {
+            "type": "string",
+            "description": "Your registered redirect URL. Must be the same redirect URL that was used for the authorizations code request.",
+            "example": "https://example.com/callback"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "CustomerContext": {
+        "type": "oauth2",
+        "description": "When making an API request that is either returning personalized customer \ndata or acting on behalf of a customer, the customer's consent \nis required using the [Authorization Code Grant Type](#authorization-code-grant).\n",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://api.kroger.com/v1/connect/oauth2/authorize",
+            "tokenUrl": "https://api.kroger.com/v1/connect/oauth2/token",
+            "scopes": {
+              "cart.basic:write": "Grants write access to a customer's cart."
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-tagGroups": [
+    {
+      "name": "Authorization Endpoints",
+      "tags": [
+        "OAuth2"
+      ]
+    },
+    {
+      "name": "API Reference",
+      "tags": [
+        "Carts"
+      ]
+    }
+  ]
+}
