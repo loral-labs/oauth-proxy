@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
@@ -62,7 +64,7 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 	}
 }
 
-func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
+func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 	config := ctx.Value(types.ConfigKey).(*config.Config)
 	store := ctx.Value(types.StoreKey).(*store.Store)
 
@@ -133,11 +135,24 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 		}
 
 		handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Default().Printf("%s/%s hit", provider.Name, path)
+			log.Default().Printf("%s%s hit", provider.Name, path)
 
 			if r.Method != method {
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 				return
+			}
+
+			// Parse path parameters using Gorilla Mux
+			fmt.Println(r.URL)
+			vars := mux.Vars(r) // NOT GETTING ANYTHING
+			truePath := path
+
+			fmt.Println(vars)
+			// Replace placeholders in the path with actual parameter values
+			for paramName, paramValue := range vars {
+				fmt.Println(paramName, paramValue)
+				placeholder := "{" + paramName + "}"
+				truePath = strings.Replace(truePath, placeholder, paramValue, 1)
 			}
 
 			// Get oryUserID from context
@@ -147,13 +162,13 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 			bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
 
 			// Construct a request to the true path
-			truePath := path
+			// truePath := path
 			params := r.URL.Query()
 			if len(params) > 0 {
 				// verify that required parameters are present
 				for _, parameter := range operation.Parameters {
 					p := *parameter.Value
-					if p.Required {
+					if p.Required && p.In == "query" {
 						if _, ok := params[p.Name]; !ok {
 							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
 							return
