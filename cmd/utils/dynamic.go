@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -56,7 +55,8 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 		}
 
 		// Create a new context with the bearer token
-		ctxWithToken := context.WithValue(ctx, types.BearerTokenKey, token)
+		ogContext := r.Context()
+		ctxWithToken := context.WithValue(ogContext, types.BearerTokenKey, token)
 		ctxWithToken = context.WithValue(ctxWithToken, types.OryUserIDKey, userID)
 
 		// If authenticated, call the next handler
@@ -143,14 +143,11 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 			}
 
 			// Parse path parameters using Gorilla Mux
-			fmt.Println(r.URL)
-			vars := mux.Vars(r) // NOT GETTING ANYTHING
-			truePath := path
+			vars := mux.Vars(r)
+			truePath := path // truePath is the actual path to the provider's API — for now we mirror real routes
 
-			fmt.Println(vars)
 			// Replace placeholders in the path with actual parameter values
 			for paramName, paramValue := range vars {
-				fmt.Println(paramName, paramValue)
 				placeholder := "{" + paramName + "}"
 				truePath = strings.Replace(truePath, placeholder, paramValue, 1)
 			}
@@ -162,17 +159,19 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 			bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
 
 			// Construct a request to the true path
-			// truePath := path
 			params := r.URL.Query()
-			if len(params) > 0 {
-				// verify that required parameters are present
-				for _, parameter := range operation.Parameters {
-					p := *parameter.Value
-					if p.Required && p.In == "query" {
-						if _, ok := params[p.Name]; !ok {
-							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
-							return
-						}
+			for _, parameter := range operation.Parameters {
+				p := *parameter.Value
+				if p.Required && p.In == "query" {
+					if _, ok := params[p.Name]; !ok {
+						http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+						return
+					}
+				}
+				if p.Required && p.In == "path" {
+					if _, ok := vars[p.Name]; !ok {
+						http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+						return
 					}
 				}
 
