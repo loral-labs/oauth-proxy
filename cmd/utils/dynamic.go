@@ -2,7 +2,6 @@ package utils
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -86,8 +85,6 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 	for _, file := range files {
 		if !file.IsDir() {
 			filePath := filepath.Join(dirPath, file.Name())
-			fmt.Println("Loading file:", filePath)
-			// Here you can add your file loading and processing logic
 			doc, err := loader.LoadFromFile(filePath)
 			if err != nil {
 				log.Fatalf("Failed to load OpenAPI document: %v", err)
@@ -199,6 +196,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 		})
 
 		// Wrap in AuthMiddleware
-		handler.Handle("/"+provider.Name+"/"+path, AuthMiddleware(ctx, handlerFunc, provider.Name))
+		log.Default().Printf("Registering %s", "/"+provider.Name+path)
+		handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name))
 	}
 }

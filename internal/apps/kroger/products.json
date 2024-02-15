@@ -23,22 +23,16 @@
   ],
   "security": [
     {
-      "CustomerContext": [
-        "product.compact"
-      ]
+      "CustomerContext": ["product.compact"]
     },
     {
-      "ClientContext": [
-        "product.compact"
-      ]
+      "ClientContext": ["product.compact"]
     }
   ],
   "paths": {
     "/v1/products": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Product search",
         "description": "Allows you to find products by passing in either a search term or product Id.\n\n### Initial Search Value Required\n\nAn initial search value is requred for all requests. You can use either of the following parameters as an initial search value: \n\n`filter.term` - When using the term parameter, the API performs a fuzzy search based on the term provided in the string. Search results are based on how relevant the term is to the product description.\n\n`filter.brand` - When using the brand parameter, the API performs a search based on the brand provided in the string. Search results only contain products that match the brand queried for.\n\n`filter.productId` - When using the productId parameter, the API performs a query to find an exact match.  \n",
         "operationId": "productGet",
@@ -91,12 +85,7 @@
             "description": "'The available fulfillment types of the product(s) to return.\nFulfillment types are case-sensitive, and lists must be comma-separated.\nMust be one or more of the follow types: <ul> <li> `ais` - Available In\nStore</li> <li> `csp` - Curbside Pickup</li> <li> `dth` - Delivery To Home</li>\n<li> `sth` - Ship To Home</li> </ui>'\n",
             "schema": {
               "type": "string",
-              "enum": [
-                "ais",
-                "csp",
-                "dth",
-                "sth"
-              ]
+              "enum": ["ais", "csp", "dth", "sth"]
             }
           },
           {
@@ -187,14 +176,10 @@
         },
         "security": [
           {
-            "CustomerContext": [
-              "product.compact"
-            ]
+            "CustomerContext": ["product.compact"]
           },
           {
-            "ClientContext": [
-              "product.compact"
-            ]
+            "ClientContext": ["product.compact"]
           }
         ],
         "x-code-samples": [
@@ -219,9 +204,7 @@
     },
     "/v1/products/{id}": {
       "get": {
-        "tags": [
-          "Products"
-        ],
+        "tags": ["Products"],
         "summary": "Product details",
         "description": "Provides access to the details of a specific product by either using the `productId` or `UPC`. To return the product price, availability, and aisle location, you must include the `filter.locationId` query parameter.",
         "operationId": "productGetID",
@@ -318,14 +301,10 @@
         },
         "security": [
           {
-            "CustomerContext": [
-              "product.compact"
-            ]
+            "CustomerContext": ["product.compact"]
           },
           {
-            "ClientContext": [
-              "product.compact"
-            ]
+            "ClientContext": ["product.compact"]
           }
         ],
         "x-code-samples": [
@@ -350,9 +329,7 @@
     },
     "/v1/connect/oauth2/authorize": {
       "get": {
-        "tags": [
-          "OAuth2"
-        ],
+        "tags": ["OAuth2"],
         "summary": "Authorization Code",
         "description": "The redirect URL to authenticate a customer and receive an authorization code.",
         "operationId": "authorizationCode",
@@ -470,9 +447,7 @@
     },
     "/v1/connect/oauth2/token": {
       "post": {
-        "tags": [
-          "OAuth2"
-        ],
+        "tags": ["OAuth2"],
         "summary": "Access Token",
         "description": "The OAuth2 endpoint that provides access tokens.",
         "operationId": "accessToken",
@@ -570,9 +545,7 @@
         },
         "security": [
           {
-            "ClientContext": [
-              "product.compact"
-            ]
+            "ClientContext": ["product.compact"]
           }
         ],
         "x-code-samples": [
@@ -973,11 +946,7 @@
         "properties": {
           "stockLevel": {
             "type": "string",
-            "enum": [
-              "HIGH",
-              "LOW",
-              "TEMPORARILY_OUT_OF_STOCK"
-            ],
+            "enum": ["HIGH", "LOW", "TEMPORARILY_OUT_OF_STOCK"],
             "description": "Indicates the level of stock.",
             "example": "HIGH"
           }
@@ -1149,11 +1118,7 @@
         "maximum": 200
       },
       "authorization_code": {
-        "required": [
-          "code",
-          "grant_type",
-          "redirect_uri"
-        ],
+        "required": ["code", "grant_type", "redirect_uri"],
         "type": "object",
         "properties": {
           "grant_type": {
@@ -1199,9 +1164,7 @@
         }
       },
       "client_credentials": {
-        "required": [
-          "grant_type"
-        ],
+        "required": ["grant_type"],
         "type": "object",
         "properties": {
           "grant_type": {
@@ -1213,9 +1176,7 @@
             "type": "string",
             "description": "The level of access your application is requesting.",
             "example": "product.compact",
-            "enum": [
-              "product.compact"
-            ]
+            "enum": ["product.compact"]
           }
         }
       },
@@ -1279,10 +1240,7 @@
         }
       },
       "refresh_token": {
-        "required": [
-          "refresh_token",
-          "grant_type"
-        ],
+        "required": ["refresh_token", "grant_type"],
         "type": "object",
         "properties": {
           "grant_type": {
@@ -1411,15 +1369,11 @@
   "x-tagGroups": [
     {
       "name": "Authorization Endpoints",
-      "tags": [
-        "OAuth2"
-      ]
+      "tags": ["OAuth2"]
     },
     {
       "name": "API Reference",
-      "tags": [
-        "Products"
-      ]
+      "tags": ["Products"]
     }
   ]
 }
