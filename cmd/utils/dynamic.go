@@ -103,6 +103,9 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 	})
 	handler.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
 
+	// search for endpoints
+	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Provider))
+
 	handler.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
 		oauthHandler.HandleCallback(provider.Provider, w, r)
 	})
