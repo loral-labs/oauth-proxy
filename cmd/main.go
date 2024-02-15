@@ -40,17 +40,16 @@ func main() {
 
 	// Use this context to access Ory APIs which require an Ory API Key.
 	var ctx = context.WithValue(context.Background(), ory.ContextAccessToken, os.Getenv("ORY_API_KEY"))
-	oryClient := oauthserver.NewOryClient(ctx)
 
-	ctx = context.WithValue(ctx, types.OryClientKey, oryClient)
 	ctx = context.WithValue(ctx, types.ConfigKey, config)
 	ctx = context.WithValue(ctx, types.StoreKey, store)
 	ctx = context.WithValue(ctx, types.LaxAuthFlag, laxAuthFlag)
-
-	// oryClient.ListClients("")
-	// oryClient.AddScope("aca314fc-8db0-4840-857c-99343e7d40c7", "ji")
+	oryClient := oauthserver.NewOryClient(ctx)
+	ctx = context.WithValue(ctx, types.OryClientKey, oryClient)
 
 	handler := mux.NewRouter()
+
+	handler.HandleFunc("/auth/introspect", oryClient.ListAppsHandler).Methods("GET")
 
 	// Load and register dynamic endpoints
 	utils.RegisterDynamicEndpoints(ctx, handler)
