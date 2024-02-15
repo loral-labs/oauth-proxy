@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,8 +10,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"io"
-
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/joho/godotenv"
 )
 
@@ -19,6 +21,7 @@ type EnvConfig struct {
 	ESURL          string
 	MasterUsername string
 	MasterPassword string
+	S3Bucket       string
 }
 
 var env EnvConfig
@@ -34,6 +37,7 @@ func init() {
 	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
 	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
 	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
+	env.S3Bucket = os.Getenv("S3_BUCKET_NAME")
 }
 
 type SearchResponse struct {
@@ -59,32 +63,24 @@ func processSearchHits(searchHits []Hit) (interface{}, error) {
 	response := make(map[string]interface{})
 
 	for _, hit := range searchHits {
-		if hit.Score < 0.75 {
-			continue
-		}
 		httpSpec := hit.Source
 
-		specPath := filepath.Join("./data/kroger", httpSpec.SpecFilePath)
-		spec, err := loadJSON(specPath)
+		specPath := filepath.Join("kroger", httpSpec.SpecFilePath)
+		spec, err := RetrieveJSONFromS3Bucket(specPath)
 		if err != nil {
 			return nil, err
 		}
 
-		specMap, ok := spec.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("error: spec is not a map")
-		}
-
-		delete(specMap, "x-tagGroups")
-		delete(specMap, "paths")
-		specMap["components"] = make(map[string]interface{})
-		specMap["endpoints"] = make(map[string]interface{})
+		delete(spec, "x-tagGroups")
+		delete(spec, "paths")
+		spec["components"] = make(map[string]interface{})
+		spec["endpoints"] = make(map[string]interface{})
 
 		if _, ok := response[httpSpec.SpecFilePath]; !ok {
-			response[httpSpec.SpecFilePath] = specMap
+			response[httpSpec.SpecFilePath] = spec
 		}
 
-		fullSpec, err := loadJSON(specPath)
+		fullSpec, err := RetrieveJSONFromS3Bucket(specPath)
 		if err != nil {
 			return nil, err
 		}
@@ -93,39 +89,73 @@ func processSearchHits(searchHits []Hit) (interface{}, error) {
 			response[httpSpec.SpecFilePath].(map[string]interface{})["endpoints"].(map[string]interface{})[httpSpec.ApiPath] = make(map[string]interface{})
 		}
 
-		endpointObject := fullSpec.(map[string]interface{})["paths"].(map[string]interface{})[httpSpec.ApiPath].(map[string]interface{})[httpSpec.ApiMethod]
-		delete(endpointObject.(map[string]interface{}), "x-code-samples")
+		endpointObject := fullSpec["paths"].(map[string]interface{})[httpSpec.ApiPath].(map[string]interface{})[httpSpec.ApiMethod].(map[string]interface{})
+		delete(endpointObject, "x-code-samples")
+		endpointObject["relevance_score"] = hit.Score
 		response[httpSpec.SpecFilePath].(map[string]interface{})["endpoints"].(map[string]interface{})[httpSpec.ApiPath].(map[string]interface{})[httpSpec.ApiMethod] = endpointObject
 	}
 
 	return response, nil
 }
 
-func loadJSON(filePath string) (interface{}, error) {
-	file, err := os.Open(filePath)
+func RetrieveJSONFromS3Bucket(objectKey string) (map[string]interface{}, error) {
+	// Initialize AWS SDK configuration
+	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, file)
-	if err != nil {
-		return nil, err
-	}
-	data := buf.Bytes()
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading AWS configuration: %v", err)
 	}
 
-	var jsonData interface{}
-	err = json.Unmarshal(data, &jsonData)
+	// Create an S3 client
+	client := s3.NewFromConfig(cfg)
+
+	// Create a GetObjectInput object
+	input := &s3.GetObjectInput{
+		Bucket: aws.String(env.S3Bucket),
+		Key:    aws.String(objectKey),
+	}
+
+	// Retrieve the object from S3
+	resp, err := client.GetObject(context.Background(), input)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error retrieving object from S3: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Decode the JSON object
+	var jsonData map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&jsonData)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding JSON object: %v", err)
 	}
 
 	return jsonData, nil
 }
+
+// func loadJSON(filePath string) (interface{}, error) {
+// 	file, err := os.Open(filePath)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer file.Close()
+
+// 	var buf bytes.Buffer
+// 	_, err = io.Copy(&buf, file)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	data := buf.Bytes()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	var jsonData interface{}
+// 	err = json.Unmarshal(data, &jsonData)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return jsonData, nil
+// }
 
 func HandleSearch(w http.ResponseWriter, r *http.Request) {
 	// Get the search query from the URL
