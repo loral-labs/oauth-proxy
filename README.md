@@ -10,3 +10,6 @@
 - run `go run cmd/main.go --lax_auth` to start the server with lax auth
 
 - Running with --lax_auth flag to accept expired or out-of-scope tokens. A structurally correct token is still required to parse the user's identity.
+
+- docker build --platform=linux/amd64 . --tag jchao2001/oauth-server-api:latest 
+- docker push jchao2001/oauth-server-api:latest

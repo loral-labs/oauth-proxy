@@ -42,7 +42,8 @@ func (h *OAuthHandler) HandleAuth(providerName string, w http.ResponseWriter, r 
 	clientRedirectURI := r.URL.Query().Get("redirect_uri")
 	// fallback to referer if redirect_uri is not provided
 	if clientRedirectURI == "" {
-		clientRedirectURI = r.Header.Get("Referer")
+		http.Error(w, "Missing redirect_uri param", http.StatusBadRequest)
+		return
 	}
 
 	userId := ctx.Value(types.OryUserIDKey).(uuid.UUID)
@@ -58,7 +59,6 @@ func (h *OAuthHandler) HandleAuth(providerName string, w http.ResponseWriter, r 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"url": url})
-	// http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 // HandleCallback handles the callback for a given provider

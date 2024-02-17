@@ -39,10 +39,9 @@ var env EnvConfig
 
 func init() {
 	// Load environment variables from .env file
-	os.Clearenv()
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Default().Printf("Error loading .env file")
 	}
 
 	// Read environment variables
@@ -135,17 +134,21 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 
 	// auth to the provider
 	oauthHandler := oauth.NewOAuthHandler(config, store)
+	log.Default().Printf("Authentication Registered %s", "/"+provider.Name+"/auth")
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Default().Printf("Authenticating %s", "/"+provider.Name+"/auth")
 		oauthHandler.HandleAuth(provider.Name, w, r)
 	})
-	handler.Handle("/"+provider.Name+"/auth/", AuthMiddleware(ctx, authHandler, provider.Name))
+	handler.Handle("/"+provider.Name+"/auth", AuthMiddleware(ctx, authHandler, provider.Name))
 
 	// search for endpoints
 	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
 	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
 
 	// handle oauth callback from provider
-	handler.HandleFunc("/"+provider.Name+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
+	log.Default().Printf("Auth Callback Registered %s", "/"+provider.Name+"/auth/callback")
+	handler.HandleFunc("/"+provider.Name+"/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+		log.Default().Printf("Auth Callback Hit %s", "/"+provider.Name+"/auth/callback")
 		oauthHandler.HandleCallback(provider.Name, w, r)
 	})
 
