@@ -9,6 +9,7 @@ const (
 	StoreKey       ContextKey = "Store"
 	BearerTokenKey ContextKey = "BearerToken"
 	OryUserIDKey   ContextKey = "OryUserID"
+	LaxAuthFlag    ContextKey = "LaxAuthFlag"
 )
 
 // Patch Operation enum

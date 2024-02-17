@@ -3,6 +3,7 @@ package store
 import (
 	"log"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	schema "lorallabs.com/oauth-server/pkg/db"
@@ -42,22 +43,22 @@ func NewStore(connectionString string) (*Store, error) {
 	return &Store{DB: db}, nil
 }
 
-// SaveToken saves a new OAuth token to the database
-func (s *Store) SaveToken(token *schema.ProviderToken) error {
-	return s.DB.Create(token).Error
-}
-
-// GetTokenByID retrieves a token by a client-provided from the database.
-func (s *Store) GetTokenByClientID(id string, provider string) (*schema.ProviderToken, error) {
-	var clientRecord *schema.Client
-	err := s.DB.Where("identifier = ?", id).First(&clientRecord).Error
-	if err != nil {
-		return nil, err
-	}
+func (s *Store) CheckValidProviderToken(userId uuid.UUID, providerName string) (bool, error) {
 	var token schema.ProviderToken
-	err = s.DB.Where("user_id = ? AND provider = ?", clientRecord.UserID, provider).First(&token).Error
+
+	err := s.DB.Joins("JOIN providers ON providers.id = provider_tokens.provider_id").
+		Where("provider_tokens.user_id = ?", userId.String()).
+		Where("providers.name = ?", providerName).
+		First(&token).Error
+
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return false, nil
+		}
+		// Handle other errors
+		log.Fatalf("Error checking for valid provider token: %v\n", err)
+		return false, err
 	}
-	return &token, nil
+
+	return true, nil
 }
