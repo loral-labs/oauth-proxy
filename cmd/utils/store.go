@@ -7,59 +7,33 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/joho/godotenv"
 )
 
-// Struct to hold the environment variables
-type EnvConfig struct {
-	ESURL          string
-	MasterUsername string
-	MasterPassword string
-	S3Bucket       string
-}
+// type SearchResponse struct {
+// 	Hits Hits `json:"hits"`
+// }
 
-var env EnvConfig
+// type Hits struct {
+// 	Hits []Hit `json:"hits"`
+// }
 
-func init() {
-	// Load environment variables from .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+// type Hit struct {
+// 	Score  float64 `json:"_score"`
+// 	Source Source  `json:"_source"`
+// }
 
-	// Read environment variables
-	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
-	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
-	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
-	env.S3Bucket = os.Getenv("S3_BUCKET_NAME")
-}
+// type Source struct {
+// 	ApiPath      string `json:"api_path"`
+// 	ApiMethod    string `json:"api_method"`
+// 	SpecFilePath string `json:"spec_file_path"`
+// }
 
-type SearchResponse struct {
-	Hits Hits `json:"hits"`
-}
-
-type Hits struct {
-	Hits []Hit `json:"hits"`
-}
-
-type Hit struct {
-	Score  float64 `json:"_score"`
-	Source Source  `json:"_source"`
-}
-
-type Source struct {
-	ApiPath      string `json:"api_path"`
-	ApiMethod    string `json:"api_method"`
-	SpecFilePath string `json:"spec_file_path"`
-}
-
-func processSearchHits(searchHits []Hit) (interface{}, error) {
+func processStoreRequest(searchHits []Hit) (interface{}, error) {
 	response := make(map[string]interface{})
 
 	for _, hit := range searchHits {
@@ -157,18 +131,19 @@ func RetrieveJSONFromS3Bucket(objectKey string) (map[string]interface{}, error) 
 // 	return jsonData, nil
 // }
 
-func HandleSearch(w http.ResponseWriter, r *http.Request) {
+func HandleStore(w http.ResponseWriter, r *http.Request) {
 	// Get the search query from the URL
 	query := r.URL.Query().Get("query")
 
 	// Prepare the OpenSearch query
-	esURL := env.ESURL + "/function-index/_search"
+	esURL := env.ESURL + "/loral-http-index/_search"
 	queryJSON := map[string]interface{}{
 		"query": map[string]interface{}{
 			"match": map[string]interface{}{
-				"function_str": query,
+				"description": query,
 			},
-		}
+		},
+		"_source": []string{"api_path", "api_method", "spec_file_path"},
 	}
 	queryBytes, err := json.Marshal(queryJSON)
 	if err != nil {
@@ -206,7 +181,7 @@ func HandleSearch(w http.ResponseWriter, r *http.Request) {
 
 	hits := result.Hits
 
-	response, err := processSearchHits(hits.Hits)
+	response, err := processStoreRequest(hits.Hits)
 	if err != nil {
 		log.Println("Error processing search hits:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
