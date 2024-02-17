@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth/providers"
+	"lorallabs.com/oauth-server/internal/oauth/providers/google"
 	"lorallabs.com/oauth-server/internal/oauth/providers/kroger"
 	"lorallabs.com/oauth-server/internal/store"
 	"lorallabs.com/oauth-server/internal/types"
@@ -31,6 +32,7 @@ func NewOAuthHandler(config *config.Config, store *store.Store) *OAuthHandler {
 func InitializeProviders(config *config.Config) map[string]providers.Provider {
 	providers := map[string]providers.Provider{
 		"kroger": &kroger.KrogerProvider{ClientID: config.KrogerClientID, ClientSecret: config.KrogerClientSecret, RedirectURI: config.KrogerRedirectURI, Scopes: config.KrogerScopes},
+		"google": &google.GoogleProvider{ClientID: config.GoogleClientID, ClientSecret: config.GoogleClientSecret, RedirectURI: config.GoogleRedirectURI, Scopes: config.GoogleScopes},
 		// Initialize other providers similarly
 	}
 	return providers
@@ -63,6 +65,13 @@ func (h *OAuthHandler) HandleAuth(providerName string, w http.ResponseWriter, r 
 
 // HandleCallback handles the callback for a given provider
 func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter, r *http.Request) {
+	provider, exists := h.ProviderMap[providerName]
+	if !exists {
+		http.Error(w, "Unsupported provider", http.StatusBadRequest)
+		return
+	}
+	provider.URLParser(r.URL)
+
 	// get userID from query params
 	userId, err := uuid.Parse(r.URL.Query().Get("userID"))
 	if err != nil {
@@ -70,12 +79,9 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		return
 	}
 
-	provider, exists := h.ProviderMap[providerName]
-	if !exists {
-		http.Error(w, "Unsupported provider", http.StatusBadRequest)
-		return
-	}
 	code := r.URL.Query().Get("code")
+	clientRedirectURI := r.URL.Query().Get("clientRedirectURI")
+
 	token, err := provider.ExchangeCodeForToken(code)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -102,8 +108,6 @@ func (h *OAuthHandler) HandleCallback(providerName string, w http.ResponseWriter
 		UserID:       userId,
 		ProviderID:   dbProvider.ID,
 	}
-
-	clientRedirectURI := r.URL.Query().Get("clientRedirectURI")
 
 	// If a token already exists for the user and provider, update it
 	var existingToken schema.ProviderToken

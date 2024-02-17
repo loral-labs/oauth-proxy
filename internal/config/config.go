@@ -12,6 +12,12 @@ type Config struct {
 	KrogerClientSecret string
 	KrogerRedirectURI  string
 	KrogerScopes       string
+
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURI  string
+	GoogleScopes       string
+
 	DBConnectionString string
 	OryActionsSecret   string
 }
@@ -28,6 +34,12 @@ func LoadConfig() *Config {
 		KrogerClientSecret: os.Getenv("KROGER_CLIENT_SECRET"),
 		KrogerRedirectURI:  os.Getenv("KROGER_REDIRECT_URI"),
 		KrogerScopes:       os.Getenv("KROGER_SCOPES"),
+
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURI:  os.Getenv("GOOGLE_REDIRECT_URI"),
+		GoogleScopes:       os.Getenv("GOOGLE_SCOPES"),
+
 		DBConnectionString: os.Getenv("DB_CONNECTION_STRING"),
 		OryActionsSecret:   os.Getenv("ORY_ACTIONS_SECRET"),
 	}

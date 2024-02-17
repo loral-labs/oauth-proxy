@@ -67,9 +67,11 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 
 		// get oryclient from context
 		o := ctx.Value(types.OryClientKey).(*oauthserver.OryClient)
-		introspected := o.IntrospectToken(token, provider)
+		// introspected := o.IntrospectToken(token, provider)
+		introspected := o.IntrospectToken(token, "") // MAYBE FIX ME — disabling loral-authed scope for now, users decide what they connect to Loral
 
 		oryUserID := introspected.GetSub()
+		log.Default().Printf("Ory User ID: %s", oryUserID)
 		userID, err := uuid.Parse(oryUserID)
 		if err != nil {
 			http.Error(w, "Invalid User ID", http.StatusUnauthorized)
@@ -96,154 +98,166 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 	config := ctx.Value(types.ConfigKey).(*config.Config)
 	store := ctx.Value(types.StoreKey).(*store.Store)
 
-	// create an instance of the Provider struct
-	provider := Provider{
-		Name:    "kroger",
-		APIRoot: "https://api.kroger.com",
-		Paths:   make(map[string]openapi3.PathItem),
-	}
-	dirPath := "internal/apps/" + provider.Name
-	files, err := ioutil.ReadDir(dirPath)
-	if err != nil {
-		log.Fatalf("Failed to read directory: %v", err)
-	}
-
-	loader := openapi3.NewLoader()
-	loader.IsExternalRefsAllowed = true
-
-	// parse all files for openapi3 paths
-	for _, file := range files {
-		if !file.IsDir() {
-			filePath := filepath.Join(dirPath, file.Name())
-			doc, err := loader.LoadFromFile(filePath)
-			if err != nil {
-				log.Fatalf("Failed to load OpenAPI document: %v", err)
-			}
-
-			if err := doc.Validate(ctx); err != nil {
-				log.Fatalf("Failed to validate OpenAPI document: %v", err)
-			}
-
-			// add to allPaths
-			paths := *doc.Paths
-			for path, pathItem := range paths.Map() {
-				provider.Paths[path] = *pathItem
-			}
-		}
+	// master directory of providers
+	allProviders := []Provider{
+		{
+			Name:    "kroger",
+			APIRoot: "https://api.kroger.com",
+			Paths:   make(map[string]openapi3.PathItem),
+		},
+		{
+			Name:    "google",
+			APIRoot: "https://www.googleapis.com",
+			Paths:   make(map[string]openapi3.PathItem),
+		},
 	}
 
-	// auth to the provider
-	oauthHandler := oauth.NewOAuthHandler(config, store)
-	log.Default().Printf("Authentication Registered %s", "/"+provider.Name+"/auth")
-	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Default().Printf("Authenticating %s", "/"+provider.Name+"/auth")
-		oauthHandler.HandleAuth(provider.Name, w, r)
-	})
-	handler.Handle("/"+provider.Name+"/auth", AuthMiddleware(ctx, authHandler, provider.Name))
+	for _, provider := range allProviders {
+		provider := provider // create a new variable to avoid improper closure
 
-	// search for endpoints
-	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
-	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
-
-	// handle oauth callback from provider
-	log.Default().Printf("Auth Callback Registered %s", "/"+provider.Name+"/auth/callback")
-	handler.HandleFunc("/"+provider.Name+"/auth/callback", func(w http.ResponseWriter, r *http.Request) {
-		log.Default().Printf("Auth Callback Hit %s", "/"+provider.Name+"/auth/callback")
-		oauthHandler.HandleCallback(provider.Name, w, r)
-	})
-
-	// Provider function endpoints
-	for path, pathItem := range provider.Paths {
-		// Create new variables to avoid improper closure
-		path := path
-		pathItem := pathItem
-
-		// FIX ME - assumes only one method per path
-		var method string
-		var operation *openapi3.Operation
-		for temp_method, temp_op := range pathItem.Operations() {
-			operation = temp_op
-			method = temp_method
-			break
+		dirPath := "internal/apps/" + provider.Name
+		files, err := ioutil.ReadDir(dirPath)
+		if err != nil {
+			log.Fatalf("Failed to read directory: %v", err)
 		}
 
-		handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Default().Printf("%s%s hit", provider.Name, path)
+		loader := openapi3.NewLoader()
+		loader.IsExternalRefsAllowed = true
 
-			if r.Method != method {
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-				return
-			}
-
-			// Parse path parameters using Gorilla Mux
-			vars := mux.Vars(r)
-			truePath := path // truePath is the actual path to the provider's API — for now we mirror real routes
-
-			// Replace placeholders in the path with actual parameter values
-			for paramName, paramValue := range vars {
-				placeholder := "{" + paramName + "}"
-				truePath = strings.Replace(truePath, placeholder, paramValue, 1)
-			}
-
-			// Get oryUserID from context
-			oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
-
-			// Get the provider-specific bearer token from the user id
-			bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
-
-			// Construct a request to the true path
-			params := r.URL.Query()
-			for _, parameter := range operation.Parameters {
-				p := *parameter.Value
-				if p.Required && p.In == "query" {
-					if _, ok := params[p.Name]; !ok {
-						http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
-						return
-					}
-				}
-				if p.Required && p.In == "path" {
-					if _, ok := vars[p.Name]; !ok {
-						http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
-						return
-					}
+		// parse all files for openapi3 paths
+		for _, file := range files {
+			if !file.IsDir() {
+				filePath := filepath.Join(dirPath, file.Name())
+				doc, err := loader.LoadFromFile(filePath)
+				if err != nil {
+					log.Fatalf("Failed to load OpenAPI document: %v", err)
 				}
 
-				truePath += "?"
-				for key, value := range params {
-					truePath += key + "=" + value[0] + "&"
+				if err := doc.Validate(ctx); err != nil {
+					log.Fatalf("Failed to validate OpenAPI document: %v", err)
 				}
-				truePath = truePath[:len(truePath)-1]
-			}
-			req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
 
-			// Add authentication headers, if necessary
-			req.Header.Add("Authorization", "Bearer "+bearerToken)
-
-			// Forward the request to the true path
-			log.Default().Printf("Request: %v\n", req)
-			client := &http.Client{}
-			resp, err := client.Do(req)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				// add to allPaths
+				paths := *doc.Paths
+				for path, pathItem := range paths.Map() {
+					provider.Paths[path] = *pathItem
+				}
 			}
-			defer resp.Body.Close()
+		}
 
-			// Copy the response body to the original response writer - just the body, not the headers
-			w.WriteHeader(resp.StatusCode)
-			_, err = io.Copy(w, resp.Body)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+		// auth to the provider
+		oauthHandler := oauth.NewOAuthHandler(config, store)
+		log.Default().Printf("Authentication Registered %s", "/"+provider.Name+"/auth")
+		authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Default().Printf("Authenticating %s", "/"+provider.Name+"/auth")
+			oauthHandler.HandleAuth(provider.Name, w, r)
+		})
+		handler.Handle("/"+provider.Name+"/auth", AuthMiddleware(ctx, authHandler, provider.Name))
+
+		// search for endpoints
+		handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
+		handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
+
+		// handle oauth callback from provider
+		log.Default().Printf("Auth Callback Registered %s", "/"+provider.Name+"/auth/callback")
+		handler.HandleFunc("/"+provider.Name+"/auth/callback", func(w http.ResponseWriter, r *http.Request) {
+			log.Default().Printf("Auth Callback Hit %s", "/"+provider.Name+"/auth/callback")
+			oauthHandler.HandleCallback(provider.Name, w, r)
 		})
 
-		// Wrap in AuthMiddleware
-		log.Default().Printf("Registering %s, %s", method, "/"+provider.Name+path)
-		handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name)).Methods(method)
+		// Provider function endpoints
+		for path, pathItem := range provider.Paths {
+			// Create new variables to avoid improper closure
+			path := path
+			pathItem := pathItem
+
+			// FIX ME - assumes only one method per path
+			var method string
+			var operation *openapi3.Operation
+			for temp_method, temp_op := range pathItem.Operations() {
+				operation = temp_op
+				method = temp_method
+				break
+			}
+
+			handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				log.Default().Printf("%s%s hit", provider.Name, path)
+
+				if r.Method != method {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
+
+				// Parse path parameters using Gorilla Mux
+				vars := mux.Vars(r)
+				truePath := path // truePath is the actual path to the provider's API — for now we mirror real routes
+
+				// Replace placeholders in the path with actual parameter values
+				for paramName, paramValue := range vars {
+					placeholder := "{" + paramName + "}"
+					truePath = strings.Replace(truePath, placeholder, paramValue, 1)
+				}
+
+				// Get oryUserID from context
+				oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
+
+				// Get the provider-specific bearer token from the user id
+				bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
+
+				// Construct a request to the true path
+				params := r.URL.Query()
+				for _, parameter := range operation.Parameters {
+					p := *parameter.Value
+					if p.Required && p.In == "query" {
+						if _, ok := params[p.Name]; !ok {
+							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+							return
+						}
+					}
+					if p.Required && p.In == "path" {
+						if _, ok := vars[p.Name]; !ok {
+							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+							return
+						}
+					}
+
+					truePath += "?"
+					for key, value := range params {
+						truePath += key + "=" + value[0] + "&"
+					}
+					truePath = truePath[:len(truePath)-1]
+				}
+				req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+
+				// Add authentication headers, if necessary
+				req.Header.Add("Authorization", "Bearer "+bearerToken)
+
+				// Forward the request to the true path
+				log.Default().Printf("Request: %v\n", req)
+				client := &http.Client{}
+				resp, err := client.Do(req)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				defer resp.Body.Close()
+
+				// Copy the response body to the original response writer - just the body, not the headers
+				w.WriteHeader(resp.StatusCode)
+				_, err = io.Copy(w, resp.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			})
+
+			// Wrap in AuthMiddleware
+			log.Default().Printf("Registering %s, %s", method, "/"+provider.Name+path)
+			handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name)).Methods(method)
+		}
 	}
 }

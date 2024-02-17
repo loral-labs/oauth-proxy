@@ -1,7 +1,6 @@
-package kroger
+package google
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,40 +13,70 @@ import (
 	"lorallabs.com/oauth-server/internal/oauth/providers"
 )
 
-type KrogerProvider struct {
+type GoogleProvider struct {
 	ClientID     string
 	ClientSecret string
 	RedirectURI  string
 	Scopes       string
 }
 
-func (k *KrogerProvider) URLParser(u *url.URL) {
-	// No need to parse anything for Kroger
+type State struct {
+	Nonce             string
+	UserID            string
+	ClientRedirectURI string
 }
 
-func (k *KrogerProvider) GetAuthURL(userID uuid.UUID, clientRedirectURI string) string {
-	scope := k.Scopes
-	redirect_uri := fmt.Sprintf("%s?userID=%s&clientRedirectURI=%s", k.RedirectURI, userID.String(), clientRedirectURI)
-	authUrl := fmt.Sprintf("https://api.kroger.com/v1/connect/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s",
-		k.ClientID, url.QueryEscape(redirect_uri), url.QueryEscape(scope))
+// Ensures clientRedirectURI and userID query params are set
+func (k *GoogleProvider) URLParser(u *url.URL) {
+	query := u.Query()
+	state := query.Get("state")
+	var stateObj State
+	err := json.Unmarshal([]byte(state), &stateObj)
+	if err != nil {
+		log.Printf("Error unmarshalling state: %s", err)
+	}
+	query.Set("clientRedirectURI", stateObj.ClientRedirectURI)
+	query.Set("userID", stateObj.UserID)
+	u.RawQuery = query.Encode()
+}
+
+func (k *GoogleProvider) GetAuthURL(userID uuid.UUID, clientRedirectURI string) string {
+	data := url.Values{}
+	data.Set("redirect_uri", k.RedirectURI)
+	data.Set("response_type", "code")
+	data.Set("access_type", "offline")
+	data.Set("client_id", k.ClientID)
+	data.Set("scope", k.Scopes)
+	state := State{
+		Nonce:             uuid.New().String(),
+		UserID:            userID.String(),
+		ClientRedirectURI: clientRedirectURI,
+	}
+	stateString, err := json.Marshal(state)
+	if err != nil {
+		log.Printf("Error marshalling state: %s", err)
+	}
+	data.Set("state", string(stateString))
+
+	authUrl := fmt.Sprintf("https://accounts.google.com/o/oauth2/v2/auth?%s", data.Encode())
 	log.Printf("Auth URL: %s", authUrl)
 	return authUrl
 }
 
-func (k *KrogerProvider) ExchangeCodeForToken(code string) (*providers.Token, error) {
+func (k *GoogleProvider) ExchangeCodeForToken(code string) (*providers.Token, error) {
 	client := &http.Client{}
 	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
+	data.Set("client_id", k.ClientID)
+	data.Set("client_secret", k.ClientSecret)
 	data.Set("code", code)
+	data.Set("grant_type", "authorization_code")
 	data.Set("redirect_uri", k.RedirectURI)
 
-	req, err := http.NewRequest("POST", "https://api.kroger.com/v1/connect/oauth2/token", strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", "https://oauth2.googleapis.com/token", strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 
-	authHeader := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", k.ClientID, k.ClientSecret))))
-	req.Header.Add("Authorization", authHeader)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := client.Do(req)
@@ -60,6 +89,7 @@ func (k *KrogerProvider) ExchangeCodeForToken(code string) (*providers.Token, er
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("Body: %s\n%s", code, body)
 
 	var tokenResponse struct {
 		AccessToken  string `json:"access_token"`
@@ -77,9 +107,11 @@ func (k *KrogerProvider) ExchangeCodeForToken(code string) (*providers.Token, er
 	}, nil
 }
 
-func (k *KrogerProvider) RefreshToken(refreshToken string) (*providers.Token, error) {
+func (k *GoogleProvider) RefreshToken(refreshToken string) (*providers.Token, error) {
 	client := &http.Client{}
 	data := url.Values{}
+	data.Set("client_id", k.ClientID)
+	data.Set("client_secret", k.ClientSecret)
 	data.Set("grant_type", "refresh_token")
 	data.Set("refresh_token", refreshToken)
 
@@ -88,8 +120,6 @@ func (k *KrogerProvider) RefreshToken(refreshToken string) (*providers.Token, er
 		return nil, err
 	}
 
-	authHeader := fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", k.ClientID, k.ClientSecret))))
-	req.Header.Add("Authorization", authHeader)
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := client.Do(req)
