@@ -12,6 +12,7 @@ type Config struct {
 	KrogerRedirectURI  string
 	KrogerScopes       string
 	DBConnectionString string
+	OryActionsSecret   string
 }
 
 func LoadConfig() *Config {
@@ -26,5 +27,6 @@ func LoadConfig() *Config {
 		KrogerRedirectURI:  os.Getenv("KROGER_REDIRECT_URI"),
 		KrogerScopes:       os.Getenv("KROGER_SCOPES"),
 		DBConnectionString: os.Getenv("DB_CONNECTION_STRING"),
+		OryActionsSecret:   os.Getenv("ORY_ACTIONS_SECRET"),
 	}
 }
