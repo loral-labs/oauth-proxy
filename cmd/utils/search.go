@@ -3,38 +3,9 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-
-	"io"
-
-	"github.com/joho/godotenv"
 )
-
-// Struct to hold the environment variables
-type EnvConfig struct {
-	ESURL          string
-	MasterUsername string
-	MasterPassword string
-}
-
-var env EnvConfig
-
-func init() {
-	// Load environment variables from .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	// Read environment variables
-	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
-	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
-	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
-}
 
 type SearchResponse struct {
 	Hits Hits `json:"hits"`
@@ -45,101 +16,52 @@ type Hits struct {
 }
 
 type Hit struct {
-	Score  float64 `json:"_score"`
-	Source Source  `json:"_source"`
+	Source Source `json:"_source"`
 }
 
 type Source struct {
-	ApiPath      string `json:"api_path"`
-	ApiMethod    string `json:"api_method"`
-	SpecFilePath string `json:"spec_file_path"`
+	FunctionStr string `json:"function_str"`
 }
 
 func processSearchHits(searchHits []Hit) (interface{}, error) {
 	response := make(map[string]interface{})
+	response["items"] = make([]string, 0)
 
 	for _, hit := range searchHits {
-		if hit.Score < 0.75 {
-			continue
-		}
-		httpSpec := hit.Source
-
-		specPath := filepath.Join("data/kroger", httpSpec.SpecFilePath)
-		spec, err := loadJSON(specPath)
-		if err != nil {
-			return nil, err
-		}
-
-		specMap, ok := spec.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("error: spec is not a map")
-		}
-
-		delete(specMap, "x-tagGroups")
-		delete(specMap, "paths")
-		specMap["components"] = make(map[string]interface{})
-		specMap["endpoints"] = make(map[string]interface{})
-
-		if _, ok := response[httpSpec.SpecFilePath]; !ok {
-			response[httpSpec.SpecFilePath] = specMap
-		}
-
-		fullSpec, err := loadJSON(specPath)
-		if err != nil {
-			return nil, err
-		}
-
-		if _, ok := response[httpSpec.SpecFilePath].(map[string]interface{})["endpoints"].(map[string]interface{})[httpSpec.ApiPath]; !ok {
-			response[httpSpec.SpecFilePath].(map[string]interface{})["endpoints"].(map[string]interface{})[httpSpec.ApiPath] = make(map[string]interface{})
-		}
-
-		endpointObject := fullSpec.(map[string]interface{})["paths"].(map[string]interface{})[httpSpec.ApiPath].(map[string]interface{})[httpSpec.ApiMethod]
-		delete(endpointObject.(map[string]interface{}), "x-code-samples")
-		response[httpSpec.SpecFilePath].(map[string]interface{})["endpoints"].(map[string]interface{})[httpSpec.ApiPath].(map[string]interface{})[httpSpec.ApiMethod] = endpointObject
+		hitSource := hit.Source
+		response["items"] = append(response["items"].([]string), hitSource.FunctionStr)
 	}
 
 	return response, nil
 }
 
-func loadJSON(filePath string) (interface{}, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, file)
-	if err != nil {
-		return nil, err
-	}
-	data := buf.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
-	var jsonData interface{}
-	err = json.Unmarshal(data, &jsonData)
-	if err != nil {
-		return nil, err
-	}
-
-	return jsonData, nil
-}
-
 func HandleSearch(w http.ResponseWriter, r *http.Request) {
 	// Get the search query from the URL
 	query := r.URL.Query().Get("query")
+	domain := r.URL.Query().Get("domain")
+
+	log.Default().Printf("Search hit for query: %s", query)
 
 	// Prepare the OpenSearch query
-	esURL := env.ESURL + "/loral-http-index/_search"
+	esURL := env.ESURL + "/function-index/_search"
 	queryJSON := map[string]interface{}{
 		"query": map[string]interface{}{
-			"match": map[string]interface{}{
-				"description": query,
+			"bool": map[string]interface{}{
+				"must": []map[string]interface{}{
+					{
+						"match": map[string]string{
+							"function_str": query,
+						},
+					},
+				},
+				"filter": map[string]interface{}{
+					"term": map[string]string{
+						"domain": domain,
+					},
+				},
 			},
 		},
-		"_source": []string{"api_path", "api_method", "spec_file_path"},
+		"_source": []string{"function_str"},
 	}
 	queryBytes, err := json.Marshal(queryJSON)
 	if err != nil {
@@ -166,7 +88,6 @@ func HandleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-
 	// Read the response body
 	var result SearchResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

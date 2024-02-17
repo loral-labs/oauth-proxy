@@ -13,6 +13,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
@@ -24,6 +25,30 @@ type Provider struct {
 	Name    string
 	APIRoot string
 	Paths   map[string]openapi3.PathItem
+}
+
+// Struct to hold the environment variables
+type EnvConfig struct {
+	ESURL          string
+	MasterUsername string
+	MasterPassword string
+	S3Bucket       string
+}
+
+var env EnvConfig
+
+func init() {
+	// Load environment variables from .env file
+	os.Clearenv()
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Read environment variables
+	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
+	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
+	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
 }
 
 // AuthMiddleware checks if the request is authenticated
@@ -109,10 +134,11 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		oauthHandler.HandleAuth(provider.Name, w, r)
 	})
-	handler.Handle("/"+provider.Name+"/auth/", AuthMiddleware(ctx, authHandler, provider.Name))
+	handler.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
 
 	// search for endpoints
-	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
+	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Provider))
+	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Provider))
 
 	// handle oauth callback from provider
 	handler.HandleFunc("/"+provider.Name+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
