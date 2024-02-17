@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
@@ -40,6 +41,30 @@ type Endpoint struct {
 	Parameters  map[string]Parameter `json:"parameters"`
 	Response    interface{}          `json:"response,omitempty"` // Optional, adjust as needed
 	Request     interface{}          `json:"request,omitempty"`  // Optional, adjust as needed
+}
+
+// Struct to hold the environment variables
+type EnvConfig struct {
+	ESURL          string
+	MasterUsername string
+	MasterPassword string
+	S3Bucket       string
+}
+
+var env EnvConfig
+
+func init() {
+	// Load environment variables from .env file
+	os.Clearenv()
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
+	// Read environment variables
+	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
+	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
+	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
 }
 
 // AuthMiddleware checks if the request is authenticated
@@ -105,6 +130,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *http.ServeMux) {
 
 	// search for endpoints
 	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Provider))
+	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Provider))
 
 	handler.HandleFunc("/"+provider.Provider+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
 		log.Default().Printf("%s callback hit", provider.Provider)
