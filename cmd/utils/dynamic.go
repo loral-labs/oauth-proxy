@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -134,11 +135,11 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 	authHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		oauthHandler.HandleAuth(provider.Name, w, r)
 	})
-	handler.Handle("/"+provider.Provider+"/auth/", AuthMiddleware(ctx, authHandler, provider.Provider))
+	handler.Handle("/"+provider.Name+"/auth/", AuthMiddleware(ctx, authHandler, provider.Name))
 
 	// search for endpoints
-	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Provider))
-	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Provider))
+	handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
+	handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
 
 	// handle oauth callback from provider
 	handler.HandleFunc("/"+provider.Name+"/auth/callback/", func(w http.ResponseWriter, r *http.Request) {
