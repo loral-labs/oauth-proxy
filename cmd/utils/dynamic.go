@@ -220,13 +220,17 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 							return
 						}
 					}
+				}
 
+				// check if params is length 0
+				if len(params) != 0 {
 					truePath += "?"
 					for key, value := range params {
 						truePath += key + "=" + value[0] + "&"
 					}
 					truePath = truePath[:len(truePath)-1]
 				}
+
 				req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -236,6 +240,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 				// Add authentication headers, if necessary
 				req.Header.Add("Authorization", "Bearer "+bearerToken)
 
+				log.Default().Printf("Request: %v\n", req.URL.String())
 				// Forward the request to the true path
 				log.Default().Printf("Request: %v\n", req)
 				client := &http.Client{}
