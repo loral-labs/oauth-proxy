@@ -22,9 +22,9 @@ Start building with Loral today and simplify your application's integration with
 ### Authorization
 Our authorization is the standard OAuth 2.0 flow:
 
-- First register your application by going to `lorallabs.com` and you will receive a `LORAL_CLIENT_ID` AND `LORAL_CLIENT_SECRET`
+1. First register your application by going to `lorallabs.com` and you will receive a `LORAL_CLIENT_ID` AND `LORAL_CLIENT_SECRET`
 
-- Next run an authorization request as shown below:
+2. Next run an authorization request as shown below:
 ```
 curl -X GET \
 https://auth.loral.dev/oauth2/auth?scope={{SCOPE}}&response_type=code&client_id={{LORAL_CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&state={{STATE}} \
@@ -34,7 +34,7 @@ https://auth.loral.dev/oauth2/auth?scope={{SCOPE}}&response_type=code&client_id=
 
 You will receive a response containing the `AUTHORIZATION_CODE` and `STATE` as query parameters to your `REDIRECT_URI`.
 
-- Next run a token request as shown below:
+3. Next run a token request as shown below:
 ```
 curl -X POST \
   'https://auth.loral.dev/oauth2/token' \
@@ -45,9 +45,9 @@ curl -X POST \
 
 You will receive a response JSON containing the keys: `access_token`, `refresh_token`, `expires_in` and `scope`.
 
-Now you have a **Loral access token** that you can use for all of your requests for any application within the `scope`.
+Now you have a **Loral access token** that you can use for all of your requests for any application within the `scope` variable.
 
-- To refresh your token, you can use a refresh request as shown below:
+4. To refresh your token, you can use a refresh request as shown below:
 ```
 curl -X POST \
   'https://auth.loral.dev/oauth2/token' \
