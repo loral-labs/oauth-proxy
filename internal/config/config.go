@@ -4,10 +4,19 @@ import (
 	"log"
 	"os"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/joho/godotenv"
 )
 
+type Provider struct {
+	Name    string
+	APIRoot string
+	Paths   map[string]openapi3.PathItem
+}
+
 type Config struct {
+	Providers []Provider
+
 	KrogerClientID     string
 	KrogerClientSecret string
 	KrogerRedirectURI  string
@@ -29,7 +38,22 @@ func LoadConfig() *Config {
 		log.Default().Printf("Error loading .env file: %v\n", err)
 	}
 
+	providers := []Provider{
+		{
+			Name:    os.Getenv("KROGER_PROVIDER_NAME"),
+			APIRoot: os.Getenv("KROGER_API_ROOT"),
+			Paths:   make(map[string]openapi3.PathItem),
+		},
+		{
+			Name:    os.Getenv("GOOGLE_PROVIDER_NAME"),
+			APIRoot: os.Getenv("GOOGLE_API_ROOT"),
+			Paths:   make(map[string]openapi3.PathItem),
+		},
+	}
+
 	return &Config{
+		Providers: providers,
+
 		KrogerClientID:     os.Getenv("KROGER_CLIENT_ID"),
 		KrogerClientSecret: os.Getenv("KROGER_CLIENT_SECRET"),
 		KrogerRedirectURI:  os.Getenv("KROGER_REDIRECT_URI"),

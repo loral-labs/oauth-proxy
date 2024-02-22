@@ -6,49 +6,18 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 	"lorallabs.com/oauth-server/internal/config"
 	"lorallabs.com/oauth-server/internal/oauth"
 	"lorallabs.com/oauth-server/internal/oauthserver"
 	"lorallabs.com/oauth-server/internal/store"
 	"lorallabs.com/oauth-server/internal/types"
 )
-
-type Provider struct {
-	Name    string
-	APIRoot string
-	Paths   map[string]openapi3.PathItem
-}
-
-// Struct to hold the environment variables
-type EnvConfig struct {
-	ESURL          string
-	MasterUsername string
-	MasterPassword string
-	S3Bucket       string
-}
-
-var env EnvConfig
-
-func init() {
-	// Load environment variables from .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Default().Printf("Error loading .env file")
-	}
-
-	// Read environment variables
-	env.ESURL = os.Getenv("LORAL_ES_DOMAIN")
-	env.MasterUsername = os.Getenv("LORAL_ES_DOMAIN_USER")
-	env.MasterPassword = os.Getenv("LORAL_ES_DOMAIN_PSWD")
-}
 
 // AuthMiddleware checks if the request is authenticated
 func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string) http.HandlerFunc {
@@ -99,18 +68,7 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 	store := ctx.Value(types.StoreKey).(*store.Store)
 
 	// master directory of providers
-	allProviders := []Provider{
-		{
-			Name:    "kroger",
-			APIRoot: "https://api.kroger.com",
-			Paths:   make(map[string]openapi3.PathItem),
-		},
-		{
-			Name:    "google",
-			APIRoot: "https://www.googleapis.com",
-			Paths:   make(map[string]openapi3.PathItem),
-		},
-	}
+	allProviders := config.Providers
 
 	for _, provider := range allProviders {
 		provider := provider // create a new variable to avoid improper closure
@@ -155,8 +113,8 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 		handler.Handle("/"+provider.Name+"/auth", AuthMiddleware(ctx, authHandler, provider.Name))
 
 		// search for endpoints
-		handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
-		handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
+		// handler.Handle("/search", AuthMiddleware(ctx, HandleSearch, provider.Name))
+		// handler.Handle("/store", AuthMiddleware(ctx, HandleStore, provider.Name))
 
 		// handle oauth callback from provider
 		log.Default().Printf("Auth Callback Registered %s", "/"+provider.Name+"/auth/callback")
