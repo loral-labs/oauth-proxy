@@ -24,9 +24,10 @@ Start building with Loral today and simplify your application's integration with
 
 Our authorization is the standard OAuth 2.0 flow:
 
-1. First register your application using the following endpoints. Make sure to save the ClientId and ClientSecret returned to you after creating a Client — these will only be shown once.
+### 1. First register and configure your application using the following endpoints and `api.loral.dev` as the hostname. Make sure to save the ClientId and ClientSecret returned to you after creating a Client — these will only be shown once. Endpoints 2-4 are if you need to make future edit — making edits requires the ClientId and ClientSecret.
 
-### 1. Create OAuth Client
+1.  Create OAuth Client
+
 - **URI:** `/client/create`
 - **Method:** POST
 - **Input:**
@@ -48,7 +49,8 @@ Our authorization is the standard OAuth 2.0 flow:
     ```
   - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
 
-### 2. Edit OAuth Client Name
+2. Edit OAuth Client Name
+
 - **URI:** `/client/edit/name`
 - **Method:** POST
 - **Input:**
@@ -64,7 +66,8 @@ Our authorization is the standard OAuth 2.0 flow:
   - **Success (200 OK)**: No body, indicates successful operation.
   - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
 
-### 3. Edit OAuth Client Scope
+3. Edit OAuth Client Scope
+
 - **URI:** `/client/edit/scope`
 - **Method:** POST
 - **Input:**
@@ -81,7 +84,8 @@ Our authorization is the standard OAuth 2.0 flow:
   - **Success (200 OK)**: No body, indicates successful operation.
   - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
 
-### 4. Edit OAuth Client Redirect URIs
+4. Edit OAuth Client Redirect URIs
+
 - **URI:** `/client/edit/redirectUris`
 - **Method:** POST
 - **Input:**
@@ -97,8 +101,9 @@ Our authorization is the standard OAuth 2.0 flow:
   - **Success (200 OK)**: No body, indicates successful operation.
   - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
 
+### 2. Next run an authorization request as shown below:
 
-2. Next run an authorization request as shown below:
+Note that these endpoints use `auth.loral.dev` as the hostname.
 
 ```
 curl -X GET \
@@ -109,7 +114,7 @@ https://auth.loral.dev/oauth2/auth?scope={{SCOPE}}&response_type=code&client_id=
 
 You will receive a response containing the `AUTHORIZATION_CODE` and `STATE` as query parameters to your `REDIRECT_URI`.
 
-3. Next run a token request as shown below:
+### 3. Next run a token request as shown below:
 
 ```
 curl -X POST \
@@ -123,7 +128,7 @@ You will receive a response JSON containing the keys: `access_token`, `refresh_t
 
 Now you have a **Loral access token** that you can use for all of your requests for any application within the `scope` variable.
 
-4. To refresh your token, you can use a refresh request as shown below:
+### 4. To refresh your token, you can use a refresh request as shown below:
 
 ```
 curl -X POST \
