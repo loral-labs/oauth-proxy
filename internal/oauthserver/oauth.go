@@ -26,11 +26,15 @@ func NewOryClient(ctx context.Context) *OryClient {
 	return &OryClient{ory: ory, ctx: ctx}
 }
 
-func (o *OryClient) CreateClient() {
+func (o *OryClient) CreateClient(clientName string, redirectUris []string) {
 	oryAuthedContext := o.ctx
-	clientName := "example_client"
 	oAuth2Client := *ory.NewOAuth2Client() // OAuth2Client |
 	oAuth2Client.SetClientName(clientName)
+	oAuth2Client.SetScope("openid offline")
+	oAuth2Client.SetSkipConsent(true)
+	oAuth2Client.SetRedirectUris(redirectUris)
+	oAuth2Client.SetGrantTypes([]string{"authorization_code", "refresh_token"})
+	oAuth2Client.SetResponseTypes([]string{"code", "token"})
 
 	resp, r, err := o.ory.OAuth2API.CreateOAuth2Client(oryAuthedContext).OAuth2Client(oAuth2Client).Execute()
 	if err != nil {
@@ -61,11 +65,18 @@ func (o *OryClient) ListClients(clientName string) {
 	}
 }
 
-func (o *OryClient) PatchClient(id string, op types.Operation, path string, value string) {
+func (o *OryClient) PatchClient(id string, clientSecret string, op types.Operation, path string, value string) {
 	oryAuthedContext := o.ctx
 
 	jsonPatch := []ory.JsonPatch{*ory.NewJsonPatch(string(op), path)} // []JsonPatch | OAuth 2.0 Client JSON Patch Body
 	jsonPatch[0].SetValue(value)
+
+	// verify the client secret
+	client := o.GetClient(id)
+	if client.GetClientSecret() != clientSecret {
+		fmt.Fprintf(os.Stderr, "Client secret does not match\n")
+		return
+	}
 
 	resp, r, err := o.ory.OAuth2API.PatchOAuth2Client(oryAuthedContext, id).JsonPatch(jsonPatch).Execute()
 	if err != nil {
