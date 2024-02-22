@@ -101,47 +101,95 @@ Our authorization is the standard OAuth 2.0 flow:
   - **Success (200 OK)**: No body, indicates successful operation.
   - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
 
-### 2. Next run an authorization request as shown below:
+### 2. Next request an authorization code:
 
 Note that these endpoints use `auth.loral.dev` as the hostname.
 
+You'll need to redirect your user from the frontend of your application to the following URL. Fill in the URL parameters as appropriate.
+
+The `redirect_uri` should be a location on your app where the user will be redirected after successfully completing the flow/authorizing your client to access Loral. For example, it may be `http://example.com/api/callback`. It must be one of the redirect uris you registered as part of step one.
+
+We recommend setting the state parameter to a stringified JSON like the one below
+
 ```
+{
+  csrf: crypto.randomBytes(16).toString("hex"), // random nonce for CSRF protection, verify this in the callback
+  userId: String(user.id), // to be used in the callback
+}
+```
+
+The `userId` should be a unique user identifier from YOUR app/DB. This way, you can associate the authorization code returned in the callback with one of your users.
+
 curl -X GET \
 https://auth.loral.dev/oauth2/auth?scope={{SCOPE}}&response_type=code&client_id={{LORAL_CLIENT_ID}}&redirect_uri={{REDIRECT_URI}}&state={{STATE}} \
-  -H 'Cache-Control: no-cache' \
-  -H 'Content-Type: application/x-www-form-urlencoded'
-```
-
-You will receive a response containing the `AUTHORIZATION_CODE` and `STATE` as query parameters to your `REDIRECT_URI`.
-
-### 3. Next run a token request as shown below:
+ -H 'Cache-Control: no-cache' \
+ -H 'Content-Type: application/x-www-form-urlencoded'
 
 ```
+
+You will receive a callback containing the `AUTHORIZATION_CODE` and `STATE` as query parameters at your `REDIRECT_URI`.
+
+### 3. Next exchange the code for access + refresh tokens:
+
+```
+
 curl -X POST \
-  'https://auth.loral.dev/oauth2/token' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -H 'Authorization: Basic {{base64(LORAL_CLIENT_ID:LORAL_CLIENT_SECRET)}}' \
-  -d 'grant_type=authorization_code&code={{AUTHORIZATION_CODE}}&redirect_uri={{REDIRECT_URI}}'
-```
-
-You will receive a response JSON containing the keys: `access_token`, `refresh_token`, `expires_in` and `scope`.
-
-Now you have a **Loral access token** that you can use for all of your requests for any application within the `scope` variable.
-
-### 4. To refresh your token, you can use a refresh request as shown below:
+ 'https://auth.loral.dev/oauth2/token' \
+ -H 'Content-Type: application/x-www-form-urlencoded' \
+ -H 'Authorization: Basic {{base64(LORAL_CLIENT_ID:LORAL_CLIENT_SECRET)}}' \
+ -d 'grant_type=authorization_code&code={{AUTHORIZATION_CODE}}&redirect_uri={{REDIRECT_URI}}'
 
 ```
+
+Await the response. It will contain a JSON with the keys: `access_token`, `refresh_token`, `expires_in` and `scope`. Save and associate these with the user they were intended for.
+
+Now you have a **Loral access token** that you can use for all of your requests for any application within the `scope` variable. The access token will expire every `expires_in` milliseconds, after which you'll have to exchange your refresh token for a fresh set of keys (see the step below).
+
+### 4. To exchange your refresh token:
+
+```
+
 curl -X POST \
-  'https://auth.loral.dev/oauth2/token' \
-  -H 'Content-Type: application/x-www-form-urlencoded' \
-  -H 'Authorization: Basic {{base64(LORAL_CLIENT_ID:LORAL_CLIENT_SECRET)}}' \
-  -d 'grant_type=refresh_token&refresh_token={{REFRESH_TOKEN}}'
+ 'https://auth.loral.dev/oauth2/token' \
+ -H 'Content-Type: application/x-www-form-urlencoded' \
+ -H 'Authorization: Basic {{base64(LORAL_CLIENT_ID:LORAL_CLIENT_SECRET)}}' \
+ -d 'grant_type=refresh_token&refresh_token={{REFRESH_TOKEN}}'
+
 ```
 
-You will then receive a response JSON containing the keys same keys `access_token`, `refresh_token`, `expires_in` and `scope`.
+You will then receive a response JSON containing a new set of keys `access_token`, `refresh_token`, `expires_in` and `scope`, make sure you save these as the updated values in your DB.
+
+### 5. Verify what apps you can access
+
+The user may not have authorized Loral to access all the requested apps in scope. You can check which apps you can access by introspecting the token with the following endpoint.
+```
+
+curl -X GET \
+ 'https://api.loral.dev/auth/introspect' \
+ -H 'Authorization: Bearer {LORAL_ACCESS_TOKEN}' \
+
+```
+This returns a JSON of provider:boolean entries, i.e.
+```
+
+"google": true,
+"kroger": false,
+
+```
+
+For any unauthenticated providers/`false` values you would like to prompt the user to grant access to, call the following endpoint
+```
+
+curl -X GET \
+ 'https://api.loral.dev/{PROVIDER}/auth' \
+ -H 'Authorization: Bearer {LORAL_ACCESS_TOKEN}' \
+
+```
+This returns a URL which you can redirect your user to in order to gain access to the provider.
 
 ### Execution
 
 For executing APIs, first please refer to the `./internal/config/config.go` file in our repository. This will show whether or not the server URL you are trying to access is has been indexed by Loral. If you do find your server URL as a key then find the provider name corresponding to that url.
 
 Then instead of sending your request to `{serverURL}/{path}` you should instead send your request to `https://api.loral.dev/{providerName}/execute/{path}` with the same parameters, headers and request body. The only difference should be that you must set the header `"Authorization": "Bearer {LORAL_ACCESS_TOKEN}"` and we will return the same response.
+```

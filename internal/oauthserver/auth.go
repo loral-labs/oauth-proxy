@@ -43,7 +43,7 @@ func (o *OryClient) ListAppsHandler(w http.ResponseWriter, r *http.Request) {
 	sub := resp.GetSub()
 	userID, err := uuid.Parse(sub)
 	if err != nil {
-		http.Error(w, "Invalid User ID", http.StatusBadRequest)
+		http.Error(w, "Unable to get UserId from Access Token", http.StatusBadRequest)
 		return
 	}
 
@@ -55,7 +55,7 @@ func (o *OryClient) ListAppsHandler(w http.ResponseWriter, r *http.Request) {
 		// check if the user has authenticated to the provider
 		exists, err := store.CheckValidProviderToken(userID, s)
 		if err != nil {
-			http.Error(w, "Error checking for valid provider token", http.StatusInternalServerError)
+			http.Error(w, "User has not authorized to provider, prompt for access by redirecting to the URL returned from api.loral.dev/{provider}/auth", http.StatusInternalServerError)
 			return
 		}
 		providers[s] = exists

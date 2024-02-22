@@ -1,7 +1,6 @@
 package oauth
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -58,9 +57,8 @@ func (h *OAuthHandler) HandleAuth(providerName string, w http.ResponseWriter, r 
 
 	url := provider.GetAuthURL(userId, clientRedirectURI)
 	// respond with the redirect URL in the response rather than redirecting
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"url": url})
+	w.Write([]byte(url))
 }
 
 // HandleCallback handles the callback for a given provider
