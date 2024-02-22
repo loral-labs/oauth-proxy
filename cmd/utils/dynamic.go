@@ -171,98 +171,92 @@ func RegisterDynamicEndpoints(ctx context.Context, handler *mux.Router) {
 			path := path
 			pathItem := pathItem
 
-			// FIX ME - assumes only one method per path
-			var method string
-			var operation *openapi3.Operation
-			for temp_method, temp_op := range pathItem.Operations() {
-				operation = temp_op
-				method = temp_method
-				break
+			for method, operation := range pathItem.Operations() {
+
+				handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					log.Default().Printf("%s%s hit", provider.Name, path)
+
+					if r.Method != method {
+						http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+						return
+					}
+
+					// Parse path parameters using Gorilla Mux
+					vars := mux.Vars(r)
+					truePath := path // truePath is the actual path to the provider's API — for now we mirror real routes
+
+					// Replace placeholders in the path with actual parameter values
+					for paramName, paramValue := range vars {
+						placeholder := "{" + paramName + "}"
+						truePath = strings.Replace(truePath, placeholder, paramValue, 1)
+					}
+
+					// Get oryUserID from context
+					oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
+
+					// Get the provider-specific bearer token from the user id
+					bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
+
+					// Construct a request to the true path
+					params := r.URL.Query()
+					for _, parameter := range operation.Parameters {
+						p := *parameter.Value
+						if p.Required && p.In == "query" {
+							if _, ok := params[p.Name]; !ok {
+								http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+								return
+							}
+						}
+						if p.Required && p.In == "path" {
+							if _, ok := vars[p.Name]; !ok {
+								http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
+								return
+							}
+						}
+					}
+
+					// check if params is length 0
+					if len(params) != 0 {
+						truePath += "?"
+						for key, value := range params {
+							truePath += key + "=" + value[0] + "&"
+						}
+						truePath = truePath[:len(truePath)-1]
+					}
+
+					req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+
+					// Add authentication headers, if necessary
+					req.Header.Add("Authorization", "Bearer "+bearerToken)
+
+					log.Default().Printf("Request: %v\n", req.URL.String())
+					// Forward the request to the true path
+					log.Default().Printf("Request: %v\n", req)
+					client := &http.Client{}
+					resp, err := client.Do(req)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					defer resp.Body.Close()
+
+					// Copy the response body to the original response writer - just the body, not the headers
+					w.WriteHeader(resp.StatusCode)
+					_, err = io.Copy(w, resp.Body)
+					if err != nil {
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+				})
+
+				// Wrap in AuthMiddleware
+				log.Default().Printf("Registering %s, %s", method, "/"+provider.Name+path)
+				handler.Handle("/"+provider.Name+"/execute"+path, AuthMiddleware(ctx, handlerFunc, provider.Name)).Methods(method)
 			}
-
-			handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				log.Default().Printf("%s%s hit", provider.Name, path)
-
-				if r.Method != method {
-					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-					return
-				}
-
-				// Parse path parameters using Gorilla Mux
-				vars := mux.Vars(r)
-				truePath := path // truePath is the actual path to the provider's API — for now we mirror real routes
-
-				// Replace placeholders in the path with actual parameter values
-				for paramName, paramValue := range vars {
-					placeholder := "{" + paramName + "}"
-					truePath = strings.Replace(truePath, placeholder, paramValue, 1)
-				}
-
-				// Get oryUserID from context
-				oryUserID := r.Context().Value(types.OryUserIDKey).(uuid.UUID)
-
-				// Get the provider-specific bearer token from the user id
-				bearerToken := oauthHandler.HandleGetToken(provider.Name, oryUserID)
-
-				// Construct a request to the true path
-				params := r.URL.Query()
-				for _, parameter := range operation.Parameters {
-					p := *parameter.Value
-					if p.Required && p.In == "query" {
-						if _, ok := params[p.Name]; !ok {
-							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
-							return
-						}
-					}
-					if p.Required && p.In == "path" {
-						if _, ok := vars[p.Name]; !ok {
-							http.Error(w, "Missing required parameter: "+p.Name, http.StatusBadRequest)
-							return
-						}
-					}
-				}
-
-				// check if params is length 0
-				if len(params) != 0 {
-					truePath += "?"
-					for key, value := range params {
-						truePath += key + "=" + value[0] + "&"
-					}
-					truePath = truePath[:len(truePath)-1]
-				}
-
-				req, err := http.NewRequest(r.Method, provider.APIRoot+truePath, r.Body)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				// Add authentication headers, if necessary
-				req.Header.Add("Authorization", "Bearer "+bearerToken)
-
-				log.Default().Printf("Request: %v\n", req.URL.String())
-				// Forward the request to the true path
-				log.Default().Printf("Request: %v\n", req)
-				client := &http.Client{}
-				resp, err := client.Do(req)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				defer resp.Body.Close()
-
-				// Copy the response body to the original response writer - just the body, not the headers
-				w.WriteHeader(resp.StatusCode)
-				_, err = io.Copy(w, resp.Body)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-			})
-
-			// Wrap in AuthMiddleware
-			log.Default().Printf("Registering %s, %s", method, "/"+provider.Name+path)
-			handler.Handle("/"+provider.Name+path, AuthMiddleware(ctx, handlerFunc, provider.Name)).Methods(method)
 		}
 	}
 }
