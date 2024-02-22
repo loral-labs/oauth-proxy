@@ -6,7 +6,7 @@ Loral is an integrated application authorization service that provides a unified
 
 Instead of having to configure your application with each individual service and manage multiple access tokens, you can simply use Loral.
 
-For example, if you need to call `https://api.notion.com/api_action`, you would instead call `https://api.loral.dev/notion/v1/api_action` with your Loral access token.
+For example, if you need to call `https://api.notion.com/api_action`, you would instead call `https://api.loral.dev/notion/execute/api_action` with your Loral access token.
 
 As long as the user has authorized Loral to access their Notion account, and your application is authorized to access their Loral account, everything is all set!
 
