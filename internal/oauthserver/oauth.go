@@ -2,10 +2,14 @@ package oauthserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
+	"strings"
 
+	"github.com/google/uuid"
 	ory "github.com/ory/client-go"
 	"lorallabs.com/oauth-server/internal/types"
 )
@@ -26,15 +30,40 @@ func NewOryClient(ctx context.Context) *OryClient {
 	return &OryClient{ory: ory, ctx: ctx}
 }
 
-func (o *OryClient) CreateClient(clientName string, redirectUris []string) {
+type JWKS struct {
+	Keys []JWK `json:"keys"`
+}
+
+type JWK struct {
+	Kty string `json:"kty"`
+	E   string `json:"e"`
+	Use string `json:"use"`
+	Kid string `json:"kid"`
+	Alg string `json:"alg"`
+	N   string `json:"n"`
+}
+
+func (o *OryClient) CreateClient(clientName string, redirectUris []string, providerScopes []string) (clientID string, clientSecret string) {
 	oryAuthedContext := o.ctx
-	oAuth2Client := *ory.NewOAuth2Client() // OAuth2Client |
+	oAuth2Client := *ory.NewOAuth2Client()
 	oAuth2Client.SetClientName(clientName)
-	oAuth2Client.SetScope("openid offline")
-	oAuth2Client.SetSkipConsent(true)
+	providerScopes = append(providerScopes, "openid", "offline")
+	oAuth2Client.SetScope(strings.Join(providerScopes, " "))
 	oAuth2Client.SetRedirectUris(redirectUris)
 	oAuth2Client.SetGrantTypes([]string{"authorization_code", "refresh_token"})
 	oAuth2Client.SetResponseTypes([]string{"code", "token"})
+	secret := uuid.New().String()
+	oAuth2Client.SetClientSecret(secret)
+	// fix me, hacky to use this for auth
+	jwk := JWK{
+		Kty: "RSA",
+		E:   "AQAB",
+		Use: "sig",
+		Kid: "ory-example",
+		Alg: "RS256",
+		N:   secret,
+	}
+	oAuth2Client.SetJwks(map[string]interface{}{"keys": []JWK{jwk}})
 
 	resp, r, err := o.ory.OAuth2API.CreateOAuth2Client(oryAuthedContext).OAuth2Client(oAuth2Client).Execute()
 	if err != nil {
@@ -46,8 +75,7 @@ func (o *OryClient) CreateClient(clientName string, redirectUris []string) {
 			fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
 		}
 	}
-	// response from `CreateOAuth2Client`: OAuth2Client
-	fmt.Fprintf(os.Stdout, "Created client with name %s\n", resp.GetClientName())
+	return resp.GetClientId(), resp.GetClientSecret()
 }
 
 func (o *OryClient) ListClients(clientName string) {
@@ -65,7 +93,7 @@ func (o *OryClient) ListClients(clientName string) {
 	}
 }
 
-func (o *OryClient) PatchClient(id string, clientSecret string, op types.Operation, path string, value string) {
+func (o *OryClient) PatchClient(id string, clientSecret string, op types.Operation, path string, value interface{}) error {
 	oryAuthedContext := o.ctx
 
 	jsonPatch := []ory.JsonPatch{*ory.NewJsonPatch(string(op), path)} // []JsonPatch | OAuth 2.0 Client JSON Patch Body
@@ -73,9 +101,22 @@ func (o *OryClient) PatchClient(id string, clientSecret string, op types.Operati
 
 	// verify the client secret
 	client := o.GetClient(id)
-	if client.GetClientSecret() != clientSecret {
-		fmt.Fprintf(os.Stderr, "Client secret does not match\n")
-		return
+	jwksMap := client.GetJwks()
+	jwksBytes, err := json.Marshal(jwksMap)
+	if err != nil {
+		return err
+	}
+
+	var jwks JWKS
+	err = json.Unmarshal(jwksBytes, &jwks)
+	if err != nil {
+		return err
+	}
+
+	trueClientSecret := jwks.Keys[0].N
+	if trueClientSecret != clientSecret {
+		log.Printf("Client secret does not match: %s, %s", trueClientSecret, clientSecret)
+		return fmt.Errorf("client secret does not match")
 	}
 
 	resp, r, err := o.ory.OAuth2API.PatchOAuth2Client(oryAuthedContext, id).JsonPatch(jsonPatch).Execute()
@@ -84,6 +125,7 @@ func (o *OryClient) PatchClient(id string, clientSecret string, op types.Operati
 		fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
 	}
 	fmt.Fprintf(os.Stdout, "Updated client with name %s\n", resp.GetClientName())
+	return nil
 }
 
 func (o *OryClient) GetClient(id string) *ory.OAuth2Client {

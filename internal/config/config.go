@@ -40,13 +40,13 @@ func LoadConfig() *Config {
 
 	providers := []Provider{
 		{
-			Name:    os.Getenv("KROGER_PROVIDER_NAME"),
-			APIRoot: os.Getenv("KROGER_API_ROOT"),
+			Name:    "kroger",
+			APIRoot: "https://api.kroger.com",
 			Paths:   make(map[string]openapi3.PathItem),
 		},
 		{
-			Name:    os.Getenv("GOOGLE_PROVIDER_NAME"),
-			APIRoot: os.Getenv("GOOGLE_API_ROOT"),
+			Name:    "google",
+			APIRoot: "https://www.googleapis.com",
 			Paths:   make(map[string]openapi3.PathItem),
 		},
 	}

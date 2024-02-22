@@ -24,7 +24,79 @@ Start building with Loral today and simplify your application's integration with
 
 Our authorization is the standard OAuth 2.0 flow:
 
-1. First register your application by going to `loral.dev` and you will receive a `LORAL_CLIENT_ID` AND `LORAL_CLIENT_SECRET`
+1. First register your application using the following endpoints. Make sure to save the ClientId and ClientSecret returned to you after creating a Client — these will only be shown once.
+
+### 1. Create OAuth Client
+- **URI:** `/client/create`
+- **Method:** POST
+- **Input:**
+  - **Body** (`application/json`):
+    ```json
+    {
+      "name": "string",
+      "redirect_uris": ["string"],
+      "scopes": ["string"] // a list of providers your app needs access to, ie. ["google", "kroger"]
+    }
+    ```
+- **Output:**
+  - **Success (200 OK)** (`application/json`):
+    ```json
+    {
+      "id": "string",
+      "secret": "string"
+    }
+    ```
+  - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
+
+### 2. Edit OAuth Client Name
+- **URI:** `/client/edit/name`
+- **Method:** POST
+- **Input:**
+  - **Body** (`application/json`):
+    ```json
+    {
+      "id": "string",
+      "secret": "string",
+      "name": "string"
+    }
+    ```
+- **Output:**
+  - **Success (200 OK)**: No body, indicates successful operation.
+  - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
+
+### 3. Edit OAuth Client Scope
+- **URI:** `/client/edit/scope`
+- **Method:** POST
+- **Input:**
+  - **Body** (`application/json`):
+    ```json
+    {
+      "id": "string",
+      "secret": "string",
+      "name": "string",
+      "add": boolean
+    }
+    ```
+- **Output:**
+  - **Success (200 OK)**: No body, indicates successful operation.
+  - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
+
+### 4. Edit OAuth Client Redirect URIs
+- **URI:** `/client/edit/redirectUris`
+- **Method:** POST
+- **Input:**
+  - **Body** (`application/json`):
+    ```json
+    {
+      "id": "string",
+      "secret": "string",
+      "uris": ["string"]
+    }
+    ```
+- **Output:**
+  - **Success (200 OK)**: No body, indicates successful operation.
+  - **Error (400 Bad Request / 500 Internal Server Error)**: Error message as plain text.
+
 
 2. Next run an authorization request as shown below:
 
@@ -65,6 +137,6 @@ You will then receive a response JSON containing the keys same keys `access_toke
 
 ### Execution
 
-For executing APIs, first please refer to the `providers.json` file in our repository. This will show whether or not the server URL you are trying to access is has been indexed by Loral. If you do find your server URL as a key then find the provider name corresponding to that url.
+For executing APIs, first please refer to the `./internal/config/config.go` file in our repository. This will show whether or not the server URL you are trying to access is has been indexed by Loral. If you do find your server URL as a key then find the provider name corresponding to that url.
 
-Then instead of sending your request to `{serverURL}/{path}` you should instead send your request to `https://api.loral.dev/{providerName}/v1/{path}` with the same parameters, headers and request body. The only difference should be that you must set the header `"Authorization": "Bearer {LORAL_ACCESS_TOKEN}"` and we will return the same response.
+Then instead of sending your request to `{serverURL}/{path}` you should instead send your request to `https://api.loral.dev/{providerName}/execute/{path}` with the same parameters, headers and request body. The only difference should be that you must set the header `"Authorization": "Bearer {LORAL_ACCESS_TOKEN}"` and we will return the same response.

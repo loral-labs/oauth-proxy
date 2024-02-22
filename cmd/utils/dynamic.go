@@ -36,8 +36,7 @@ func AuthMiddleware(ctx context.Context, next http.HandlerFunc, provider string)
 
 		// get oryclient from context
 		o := ctx.Value(types.OryClientKey).(*oauthserver.OryClient)
-		// introspected := o.IntrospectToken(token, provider)
-		introspected := o.IntrospectToken(token, "") // MAYBE FIX ME — disabling loral-authed scope for now, users decide what they connect to Loral
+		introspected := o.IntrospectToken(token, provider)
 
 		oryUserID := introspected.GetSub()
 		log.Default().Printf("Ory User ID: %s", oryUserID)

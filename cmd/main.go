@@ -38,8 +38,6 @@ func main() {
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
-		// Enable Debugging for testing, consider disabling in production
-		// Debug: true,
 	})
 
 	// Use this context to access Ory APIs which require an Ory API Key.
@@ -54,16 +52,8 @@ func main() {
 	handler := mux.NewRouter()
 
 	handler.HandleFunc("/auth/introspect", oryClient.ListAppsHandler).Methods("GET")
-
 	handler.HandleFunc("/ory/actions/newUserCallback", func(w http.ResponseWriter, r *http.Request) {
 		secret := r.Header.Get("X-Secret")
-		log.Printf("Secret: %v", secret)
-		// print headers
-		for name, values := range r.Header {
-			for _, value := range values {
-				log.Printf("%v: %v", name, value)
-			}
-		}
 		if secret != config.OryActionsSecret {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
@@ -112,6 +102,7 @@ func main() {
 	}).Methods("POST")
 
 	// Load and register dynamic endpoints
+	oryClient.RegisterOAuthServerHandlers(handler)
 	utils.RegisterDynamicEndpoints(ctx, handler)
 
 	// Register a catch-all 404 handler
