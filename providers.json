@@ -1,0 +1,10 @@
+{
+    "servers": {
+        "https://www.googleapis.com": {
+            "name": "google"
+        },
+        "https://api.kroger.com": {
+            "name": "kroger"
+        }
+    }
+}
