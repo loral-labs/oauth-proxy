@@ -178,9 +178,10 @@ For any unauthenticated providers/`false` values you would like to prompt the us
 curl -X GET \
  'https://api.loral.dev/{PROVIDER}/auth' \
  -H 'Authorization: Bearer {LORAL_ACCESS_TOKEN}' \
+ -d 'redirect_uri={{REDIRECT_URI}} \
 ```
 
-This returns a URL which you can redirect your user to in order to gain access to the provider.
+This returns a URL which you can redirect your user to in order to gain access to the provider. After they have granted access, the user will be redirected back to the `REDIRECT_URI` (probably a page on your site).
 
 ### Execution
 
