@@ -47,7 +47,7 @@ func (o *OryClient) CreateClient(clientName string, redirectUris []string, provi
 	oryAuthedContext := o.ctx
 	oAuth2Client := *ory.NewOAuth2Client()
 	oAuth2Client.SetClientName(clientName)
-	providerScopes = append(providerScopes, "openid", "offline")
+	providerScopes = append(providerScopes, "openid", "offline_access")
 	oAuth2Client.SetScope(strings.Join(providerScopes, " "))
 	oAuth2Client.SetRedirectUris(redirectUris)
 	oAuth2Client.SetGrantTypes([]string{"authorization_code", "refresh_token"})
